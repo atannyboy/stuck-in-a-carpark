@@ -1,0 +1,14 @@
+[package]
+name = "stuck_in_a_carpark_game"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+piston = "0.52"
+piston2d-graphics = "0.39"
+pistoncore-glutin_window = "0.57"
+piston2d-opengl_graphics = "0.76"
+piston_window = "0.115"
+rand = "0.8.5"
