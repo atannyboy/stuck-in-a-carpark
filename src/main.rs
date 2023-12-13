@@ -32,7 +32,9 @@ fn main() {
 
     // Generate initial puzzle with vehicles
     let initial_vehicles = puzzle_generator.generate_puzzle(&mut game_manager.game);
-    game_manager.update_vehicles(initial_vehicles);
+    game_manager.update_vehicles(initial_vehicles.clone());
+
+    display_carpark(&initial_vehicles, &game_manager.game.grid);
 
     let mut gl = GlGraphics::new(opengl);
     let mut cursor_pos: [f64; 2] = [0.0, 0.0];

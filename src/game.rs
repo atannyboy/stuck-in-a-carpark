@@ -44,10 +44,10 @@ impl Game {
             println!("Placing vehicle on grid ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, vehicle.position, vehicle.orientation);
             
             let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
-            let (width, height) = match vehicle.orientation {
+            /*let (width, height) = match vehicle.orientation {
                 Orientation::Horizontal => (vehicle.size.0 as usize, 1),
                 Orientation::Vertical => (1, vehicle.size.1 as usize),
-            };
+            };*/
     
             // Check for overlap before placing the vehicle
             if self.grid[y][x].is_some() {

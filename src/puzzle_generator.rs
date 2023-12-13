@@ -49,7 +49,7 @@ impl PuzzleGenerator {
 
             // Call add_vehicle_strategically with a reference to game
             self.add_vehicle_strategically(game, vehicle_id);
-            self.move_vehicles_strategically();
+            self.move_vehicles_strategically(game);
             self.verify_solvability(game);
         }
         self.vehicle_struct.vehicles.clone()
@@ -125,9 +125,6 @@ impl PuzzleGenerator {
         
         self.vehicle_struct.vehicles.clone() // Return the updated list of vehicles
     }
-
-	fn move_vehicles_strategically(&mut self) {
-	}
 	
 	fn generate_vehicle(&mut self, position: (usize, usize), orientation: Orientation) -> Vehicle {
 		let mut rng = rand::thread_rng();
@@ -323,6 +320,104 @@ impl PuzzleGenerator {
             false
         }
 	}
+
+    // === start of movement code ===
+
+    pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
+        let mut moves_to_apply = Vec::new();
+    
+        // Collect moves
+        for vehicle in &game.vehicles {
+            if let Some(mv) = self.calculate_possible_moves(vehicle, game)
+                .iter()
+                .max_by_key(|mv| self.calculate_move_complexity(mv, game)) {
+                moves_to_apply.push(*mv);
+            }
+        }
+    
+        // Apply moves
+        for mv in moves_to_apply {
+            self.apply_move(mv, game);
+        }
+    }    
+
+    fn calculate_possible_moves(&self, vehicle: &Vehicle, game: &Game) -> Vec<Move> {
+        let mut moves = Vec::new();
+
+        // Check moves in the forward direction
+        let forward_moves = self.check_direction(vehicle, game, MoveDirection::Forward);
+        moves.extend(forward_moves);
+
+        // Check moves in the backward direction
+        let backward_moves = self.check_direction(vehicle, game, MoveDirection::Backward);
+        moves.extend(backward_moves);
+
+        moves
+    }
+
+    fn check_direction(&self, vehicle: &Vehicle, game: &Game, direction: MoveDirection) -> Vec<Move> {
+        let mut moves = Vec::new();
+        let (dx, dy) = match vehicle.orientation {
+            Orientation::Horizontal => match direction {
+                MoveDirection::Forward => (1, 0),
+                MoveDirection::Backward => (-1, 0),
+            },
+            Orientation::Vertical => match direction {
+                MoveDirection::Forward => (0, 1),
+                MoveDirection::Backward => (0, -1),
+            },
+        };
+
+        let mut steps = 1;
+        loop {
+            let new_position = self.calculate_new_position(vehicle.position, dx * steps, dy * steps);
+            if self.is_valid_position(new_position, vehicle.size, vehicle.orientation, game) {
+                let mut steps_u8 = steps as u8;
+                moves.push(Move {
+                    vehicle_id: vehicle.id,
+                    direction,
+                    steps: steps_u8,
+                });
+            } else {
+                break;
+            }
+            steps += 1;
+        }
+
+        moves
+    }
+
+    fn calculate_new_position(&self, original_position: (u8, u8), dx: isize, dy: isize) -> (u8, u8) {
+        // Calculate the new position based on the delta values (dx, dy)
+        // Ensure the new position does not exceed grid boundaries
+        (0, 0)
+    }
+
+    fn is_valid_position(&self, position: (u8, u8), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
+        // Check if the new position is valid by ensuring it does not
+        // result in overlapping with other vehicles or going outside the grid
+        false
+    }
+
+    fn select_best_move(&self, possible_moves: &[Move], game: &Game) -> Option<Move> {
+        possible_moves.iter()
+            .max_by_key(|mv| self.calculate_move_complexity(mv, game))
+            .copied()
+    }
+
+    fn calculate_move_complexity(&self, r#move: &Move, game: &Game) -> usize {
+        // Logic to calculate the complexity increase for a given move
+        // Consider factors like blocking the path of the red car,
+        // creating bottlenecks, etc.
+        0
+    }
+
+    fn apply_move(&self, r#move: Move, game: &mut Game) {
+        // Logic to apply the selected move to the game state
+        // Update the vehicle's position in the game grid
+    }
+
+    // === end of movement code ===
 }
 
 struct ComplexityMeasure {
@@ -379,3 +474,20 @@ impl ComplexityMeasure {
         complexity
     }
 }
+
+// === start of movement code ===
+
+#[derive(Clone, Copy, Debug)]
+struct Move {
+    vehicle_id: usize, // ID of the vehicle to move
+    direction: MoveDirection, // Direction to move the vehicle
+    steps: u8, // Number of steps to move
+}
+
+#[derive(Clone, Copy, Debug)]
+enum MoveDirection {
+    Forward, // Towards the end of the grid
+    Backward, // Towards the start of the grid
+}
+
+// === end of movement code ===
