@@ -5,10 +5,9 @@ mod puzzle_generator;
 use game::Game;
 
 use piston::window::WindowSettings;
-use piston_window::{PistonWindow, EventLoop, Window, AdvancedWindow};
+use piston_window::PistonWindow;
 use opengl_graphics::{GlGraphics, OpenGL};
-use piston::event_loop::{Events, EventSettings};
-use piston::input::{RenderEvent, UpdateEvent, PressEvent, ReleaseEvent, MouseCursorEvent};
+use piston::input::{RenderEvent, PressEvent, MouseCursorEvent};
 use piston::Button;
 use piston::input::{MouseButton};
 

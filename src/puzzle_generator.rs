@@ -1,6 +1,7 @@
 use crate::Game;
 use crate::vehicle_struct::{VehicleStruct, Vehicle, Orientation, AnsiColorCode};
 use rand::Rng;
+use rand::prelude::SliceRandom;
 use std::collections::HashSet;
 
 pub const GRID_WIDTH: usize = 7;
@@ -41,9 +42,13 @@ impl PuzzleGenerator {
     // Updated to accept a reference to Game
     pub fn generate_puzzle(&mut self, game: &mut Game) -> Vec<Vehicle> {
         self.place_red_car();
+
+        let mut vehicle_id: usize = 0;
         while !self.puzzle_generated(game) {
+            vehicle_id += 1;
+
             // Call add_vehicle_strategically with a reference to game
-            self.add_vehicle_strategically(game);
+            self.add_vehicle_strategically(game, vehicle_id);
             self.move_vehicles_strategically();
             self.verify_solvability(game);
         }
@@ -72,18 +77,22 @@ impl PuzzleGenerator {
 		self.vehicle_struct.add_vehicle(red_car);
 	}
 
-    pub fn add_vehicle_strategically(&mut self, game: &mut Game) -> Vec<Vehicle> {
+    pub fn add_vehicle_strategically(&mut self, game: &mut Game, vehicle_id: usize) -> Vec<Vehicle> {
         loop {
             let vehicle_size = self.generate_random_vehicle_size();
-            let mut possible_positions = match vehicle_size {
-                (1, 2) | (2, 1) => self.generate_possible_positions_1x2(game),
-                (1, 3) | (3, 1) => self.generate_possible_positions_1x3(game),
+            let random_orientation = self.generate_random_orientation();
+            let mut possible_positions: Vec<((usize, usize), Orientation)> = match (vehicle_size, random_orientation) {
+                ((1, 2), Orientation::Vertical) => self.generate_possible_positions_1x2(game, vehicle_size, Orientation::Vertical),
+                ((2, 1), Orientation::Horizontal) => self.generate_possible_positions_1x2(game, vehicle_size, Orientation::Horizontal),
+                ((1, 3), Orientation::Vertical) => self.generate_possible_positions_1x3(game, vehicle_size, Orientation::Vertical),
+                ((3, 1), Orientation::Horizontal) => self.generate_possible_positions_1x3(game, vehicle_size, Orientation::Horizontal),
                 _ => Vec::new(),
             };
 
             let mut best_position: Option<(usize, usize)> = None;
             let mut best_orientation = Orientation::Horizontal;
             let mut best_complexity = 0;
+            
 
             for (position, orientation) in &possible_positions {
                 if game.is_position_empty(position.0, position.1) {
@@ -99,18 +108,17 @@ impl PuzzleGenerator {
             if let Some(position) = best_position {
                 let vehicle = self.generate_vehicle(position, best_orientation);
                 if self.vehicle_struct.add_vehicle(vehicle) {
-                    println!("Vehicle added at position: {:?}, orientation: {:?}", position, best_orientation);
-
+                    println!("Successfully added vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
                     // Update the game's grid to reflect the new vehicle
                     game.update_grid_with_new_vehicle(&vehicle);
                     break;
                 } else {
-                    println!("Failed to add vehicle at position: {:?}, orientation: {:?} due to overlap or boundary issues", position, best_orientation);
+                    println!("Failed to add vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
                     // Remove the failed position from possible_positions and retry
                     possible_positions.retain(|&(p, o)| p != position || o != best_orientation);
                 }
             } else {
-                println!("No suitable position found for vehicle.");
+                println!("No suitable position found for vehicle ID: {}", vehicle_id);
                 break;
             }
         }
@@ -158,13 +166,16 @@ impl PuzzleGenerator {
         self.used_colors.insert(ansi_color.to_string());
 
         // Randomly generate other attributes
-        let id = rng.gen(); // Generate a random number or use a unique ID logic
-        let sizes = [(2, 1), (1, 2), (3, 1), (1, 3)]; // Example size options
+        let id = 0;
+        let sizes = match orientation {
+            Orientation::Horizontal => [(2, 1), (3, 1)],
+            Orientation::Vertical => [(1, 2), (1, 3)],
+        };
         let size = sizes[rng.gen_range(0..sizes.len())];
 
         // Create and return the vehicle using the RGBA color and the provided position
         let vehicle = Vehicle::new(id, rgba_color, size, (position.0 as u8, position.1 as u8), orientation, ansi_color);
-		println!("Generated vehicle: {:?}", vehicle);
+		println!("Generated vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", id, size, position, orientation);
 		
     	vehicle
     }
@@ -185,54 +196,53 @@ impl PuzzleGenerator {
         sizes[size_index]  // Return the size
     }
 
-    fn generate_possible_positions_1x2(&self, game: &Game) -> Vec<((usize, usize), Orientation)> {
-        let mut positions = Vec::new();
-        for y in 0..GRID_HEIGHT {
-            for x in 0..GRID_WIDTH {
-                // Check horizontal fit
-                if x + 1 < GRID_WIDTH && 
-                   self.is_position_empty(game, x, y) && 
-                   self.is_position_empty(game, x + 1, y) {
-                    positions.push(((x, y), Orientation::Horizontal));
-                }
-                // Check vertical fit
-                if y + 1 < GRID_HEIGHT && 
-                   self.is_position_empty(game, x, y) && 
-                   self.is_position_empty(game, x, y + 1) {
-                    positions.push(((x, y), Orientation::Vertical));
-                }
-            }
-        }
-        println!("{:?}", positions);
-        positions
+    pub fn generate_random_orientation(&self) -> Orientation {
+        let mut rng = rand::thread_rng();
+        let orientations = [Orientation::Vertical, Orientation::Horizontal];
+        *orientations.choose(&mut rng).expect("Array is non-empty")
     }
 
-    fn generate_possible_positions_1x3(&self, game: &Game) -> Vec<((usize, usize), Orientation)> {
-        let mut positions = Vec::new();
+    fn generate_possible_positions_1x2(&self, game: &mut Game, vehicle_size: (u8, u8), orientation: Orientation) -> Vec<((usize, usize), Orientation)> {
+        let mut all_positions = Vec::new();
         for y in 0..GRID_HEIGHT {
             for x in 0..GRID_WIDTH {
-                // Check horizontal fit
-                if x + 2 < GRID_WIDTH &&
-                   self.is_position_empty(game, x, y) && 
-                   self.is_position_empty(game, x + 1, y) &&
-                   self.is_position_empty(game, x + 2, y) {
-                    positions.push(((x, y), Orientation::Horizontal));
-                }
-                // Check vertical fit
-                if y + 2 < GRID_HEIGHT &&
-                   self.is_position_empty(game, x, y) &&
-                   self.is_position_empty(game, x, y + 1) &&
-                   self.is_position_empty(game, x, y + 2) {
-                    positions.push(((x, y), Orientation::Vertical));
+                // Check if the vehicle fits in the grid based on its orientation
+                if (orientation == Orientation::Horizontal && x + 1 < GRID_WIDTH) ||
+                   (orientation == Orientation::Vertical && y + 1 < GRID_HEIGHT) {
+                    // Check if starting position is suitable for placement
+                    if self.can_place_vehicle(game, x, y, orientation, 2) {
+                        all_positions.push(((x, y), orientation));
+                    }
                 }
             }
         }
-        println!("{:?}", positions);
-        positions
+        all_positions
     }
+
+    fn generate_possible_positions_1x3(&self, game: &mut Game, vehicle_size: (u8, u8), orientation: Orientation) -> Vec<((usize, usize), Orientation)> {
+        let mut all_positions = Vec::new();
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
+                // Check if the vehicle fits in the grid based on its orientation
+                if (orientation == Orientation::Horizontal && x + 2 < GRID_WIDTH) ||
+                   (orientation == Orientation::Vertical && y + 2 < GRID_HEIGHT) {
+                    // Check if starting position is suitable for placement
+                    if self.can_place_vehicle(game, x, y, orientation, 3) {
+                        all_positions.push(((x, y), orientation));
+                    }
+                }
+            }
+        }
+        all_positions
+    } 
 
     // This method checks if a vehicle can be placed at a given position with a given orientation
     fn can_place_vehicle(&self, game: &Game, x: usize, y: usize, orientation: Orientation, length: usize) -> bool {
+        // First, check if the starting position is within bounds
+        if !self.is_position_in_bounds(x, y) {
+            return false;
+        }
+
         match orientation {
             Orientation::Horizontal => {
                 // Check if vehicle fits horizontally within the grid
@@ -241,7 +251,13 @@ impl PuzzleGenerator {
                 }
 
                 // Ensure no overlap with existing vehicles
-                (x..x + length).all(|xi| game.is_position_empty(xi, y))
+                for xi in x..std::cmp::min(x + length, GRID_WIDTH) {
+                    if !game.is_position_empty(xi, y) {
+                        return false;
+                    }
+                }
+
+                true
             },
             Orientation::Vertical => {
                 // Check if vehicle fits vertically within the grid
@@ -250,15 +266,20 @@ impl PuzzleGenerator {
                 }
 
                 // Ensure no overlap with existing vehicles
-                (y..y + length).all(|yi| game.is_position_empty(x, yi))
+                for yi in y..std::cmp::min(y + length, GRID_HEIGHT) {
+                    if !game.is_position_empty(x, yi) {
+                        return false;
+                    }
+                }
+
+                true
             }
         }
     }
 
-	// Helper method to check if a grid position is empty
-    fn is_position_empty(&self, game: &Game, x: usize, y: usize) -> bool {
-        // Assuming `game.grid` represents the current state of the grid
-        game.grid[y][x].is_none()
+    // This method checks if a given position is within the bounds of the grid
+    fn is_position_in_bounds(&self, x: usize, y: usize) -> bool {
+        x < GRID_WIDTH && y < GRID_HEIGHT
     }
 
     pub fn verify_solvability(&self, game: &Game) {
@@ -271,11 +292,11 @@ impl PuzzleGenerator {
             if red_car.position.1 as usize == center_row {
                 // Check if the path from the red car's rightmost position to the right edge of the grid is clear
                 let path_clear = ((red_car.position.0 + red_car.size.0 as u8) as usize..GRID_WIDTH).all(|x| {
-                    self.is_position_empty(game, x, center_row)
+                    game.is_position_empty(x, center_row)
                 });
 
                 if path_clear {
-                    println!("Puzzle is solvable: Red car has a clear path to the exit.");
+                    /*println!("Puzzle is solvable: Red car has a clear path to the exit.");*/
                 } else {
                     println!("Puzzle may not be solvable: Red car's path to the exit is blocked.");
                 }
@@ -316,10 +337,10 @@ impl ComplexityMeasure {
 
     // Updated calculate method
     pub fn calculate(&self, game: &Game, position: (usize, usize), size: (u8, u8), orientation: Orientation) -> usize {
-        // Complexity calculation logic
-        // Example logic (you can modify this based on your game's rules):
-
         let mut complexity = 0;
+
+        // Debug message for initial complexity
+        println!("Initial complexity: {}", complexity);
 
         // Increase complexity for positions closer to the center of the grid
         let center_x = GRID_WIDTH / 2;
@@ -327,25 +348,33 @@ impl ComplexityMeasure {
         complexity += (center_x as isize - position.0 as isize).abs() as usize;
         complexity += (center_y as isize - position.1 as isize).abs() as usize;
 
+        // Debug message after calculating distance to center
+        println!("Complexity after center distance calculation: {}", complexity);
+
         // Increase complexity based on the orientation and size
         match orientation {
             Orientation::Horizontal => {
                 for xi in position.0..position.0 + size.0 as usize {
                     if game.is_position_empty(xi, position.1) {
-                        complexity += 1;  // Increase complexity for each empty space
+                        complexity += 1; // Increase complexity for each empty space
+                        // Debug message for each position check
+                        println!("Complexity increased for Horizontal at position ({}, {}), current complexity: {}", xi, position.1, complexity);
                     }
                 }
             },
             Orientation::Vertical => {
                 for yi in position.1..position.1 + size.1 as usize {
                     if game.is_position_empty(position.0, yi) {
-                        complexity += 1;  // Increase complexity for each empty space
+                        complexity += 1; // Increase complexity for each empty space
+                        // Debug message for each position check
+                        println!("Complexity increased for Vertical at position ({}, {}), current complexity: {}", position.0, yi, complexity);
                     }
                 }
             }
         }
 
-        // You can add more conditions to increase complexity based on other factors
+        // Final debug message for complexity
+        println!("Final calculated complexity: {}", complexity);
 
         complexity
     }

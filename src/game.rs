@@ -4,7 +4,6 @@ use crate::GlGraphics;
 
 use crate::CELL_SIZE;
 
-use crate::puzzle_generator::PuzzleGenerator;
 use crate::puzzle_generator::GRID_WIDTH;
 use crate::puzzle_generator::GRID_HEIGHT;
 
@@ -30,7 +29,9 @@ impl Game {
 
     // Add this method to update vehicles
     pub fn set_vehicles(&mut self, vehicles: Vec<Vehicle>) {
+        let vehicles_count = vehicles.len();
         self.vehicles = vehicles;
+        println!("Setting vehicles. Vehicle count: {}", vehicles_count);
         self.update_grid(); // Update grid every time vehicles are set
     }
 
@@ -40,7 +41,13 @@ impl Game {
         self.grid = [[None; GRID_WIDTH]; GRID_WIDTH];
     
         for (index, vehicle) in self.vehicles.iter().enumerate() {
+            println!("Placing vehicle on grid ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, vehicle.position, vehicle.orientation);
+            
             let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
+            let (width, height) = match vehicle.orientation {
+                Orientation::Horizontal => (vehicle.size.0 as usize, 1),
+                Orientation::Vertical => (1, vehicle.size.1 as usize),
+            };
     
             // Check for overlap before placing the vehicle
             if self.grid[y][x].is_some() {
@@ -85,6 +92,7 @@ impl Game {
     // Method to update the grid with a new vehicle
     pub fn update_grid_with_new_vehicle(&mut self, vehicle: &Vehicle) {
         let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
+        println!("Updating grid with new vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, vehicle.position, vehicle.orientation);
         match vehicle.orientation {
             Orientation::Horizontal => {
                 for i in 0..vehicle.size.0 as usize {
@@ -103,9 +111,12 @@ impl Game {
         }
     }
 
-    // Method to check if a specific position is empty
     pub fn is_position_empty(&self, x: usize, y: usize) -> bool {
-        self.grid[y][x].is_none()
+        if x >= GRID_WIDTH || y >= GRID_HEIGHT {
+            false // If the index is out of bounds, return false
+        } else {
+            self.grid[y][x].is_none()
+        }
     }
 
     pub fn vehicle_at_position(&self, x: f64, y: f64) -> Option<usize> {
