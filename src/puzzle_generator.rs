@@ -69,12 +69,13 @@ impl PuzzleGenerator {
 			ansi_color: AnsiColorCode::Red,
 		};
 
+        println!("Successfully added vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, red_car.size, red_car.position, red_car.orientation);
+
 		// Place the red car at the exit
 		// Assuming 'game' is a mutable reference to the Game struct and has a method to add vehicles
         game.update_grid_with_new_vehicle(&red_car, *vehicle_id);
 	    game.vehicles.push(red_car);
 
-        println!("Vehicle id: {}", vehicle_id);
         *vehicle_id += 1;
 	}
 
@@ -107,14 +108,13 @@ impl PuzzleGenerator {
             }
 
             if let Some(position) = best_position {
-                let vehicle = self.generate_vehicle(position, best_orientation);
+                let vehicle = self.generate_vehicle(position, best_orientation, vehicle_id);
                 /*if self.vehicle_struct.add_vehicle(vehicle) {*/
                     println!("Successfully added vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, vehicle.size, position, best_orientation);
                     // Update the game's grid to reflect the new vehicle
                     game.update_grid_with_new_vehicle(&vehicle, *vehicle_id);
                     game.vehicles.push(vehicle);
 
-                    println!("Vehicle id: {}", vehicle_id);
                     *vehicle_id += 1;
 
                     break;
@@ -132,7 +132,7 @@ impl PuzzleGenerator {
         game.vehicles.clone() // Return the updated list of vehicles
     }
 	
-	fn generate_vehicle(&mut self, position: (usize, usize), orientation: Orientation) -> Vehicle {
+	fn generate_vehicle(&mut self, position: (usize, usize), orientation: Orientation, vehicle_id: &mut usize) -> Vehicle {
 		let mut rng = rand::thread_rng();
 	
 		let color_options: Vec<AnsiColorCode> = vec![
@@ -169,7 +169,7 @@ impl PuzzleGenerator {
         self.used_colors.insert(ansi_color.to_string());
 
         // Randomly generate other attributes
-        let vehicle_id = 0;
+        /*let vehicle_id = 0;*/
         let sizes = match orientation {
             Orientation::Horizontal => [(2, 1), (3, 1)],
             Orientation::Vertical => [(1, 2), (1, 3)],
@@ -177,7 +177,7 @@ impl PuzzleGenerator {
         let size = sizes[rng.gen_range(0..sizes.len())];
 
         // Create and return the vehicle using the RGBA color and the provided position
-        let vehicle = Vehicle::new(vehicle_id, rgba_color, size, (position.0 as u8, position.1 as u8), orientation, ansi_color);
+        let vehicle = Vehicle::new(*vehicle_id, rgba_color, size, (position.0 as u8, position.1 as u8), orientation, ansi_color);
 		println!("Generated vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, size, position, orientation);
 		
     	vehicle
