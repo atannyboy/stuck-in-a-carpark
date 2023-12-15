@@ -330,24 +330,29 @@ impl PuzzleGenerator {
     // === start of movement code ===
 
     pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
-        let mut mv = Move::new(); // Declare 'mv' as mutable
-    
-        // Collect moves
+        let mut best_move = None;
+        let mut max_complexity = 0;
+
+        // Iterate over each vehicle to find the best move
         for vehicle in &game.vehicles {
-            if let Some(new_mv) = self.calculate_possible_moves(vehicle, game)
-                .iter()
-                .max_by_key(|mv| self.calculate_move_complexity(mv, game)) {
-                println!("Collected move for vehicle ID {}: Move {:?} steps in direction {:?}", vehicle.id, new_mv.steps, new_mv.direction);
-    
-                mv = new_mv.clone(); // Assign the new value to 'mv'
-                break;
+            let possible_moves = self.calculate_possible_moves(vehicle, game);
+
+            // Find the move with the highest complexity
+            for mv in possible_moves {
+                let complexity = self.calculate_move_complexity(vehicle, game);
+                if complexity > max_complexity {
+                    best_move = Some(mv);
+                    max_complexity = complexity;
+                }
             }
         }
-    
-        // Apply moves
-        self.apply_move(mv, game); // 'mv' now has the updated value
-        game.display_carpark(&game.vehicles.clone(), &game.grid.clone());
-    }    
+
+        if let Some(mv) = best_move {
+            println!("Applying move for vehicle ID {}: Move {:?} steps in direction {:?}", mv.vehicle_id, mv.steps, mv.direction);
+            self.apply_move(mv, game); // Apply the best move
+            game.display_carpark(&game.vehicles.clone(), &game.grid.clone());
+        }
+    }
 
     fn calculate_possible_moves(&self, vehicle: &Vehicle, game: &Game) -> Vec<Move> {
         let mut moves = Vec::new();
@@ -480,21 +485,83 @@ impl PuzzleGenerator {
         occupied_positions
     }    
 
-    fn select_best_move(&self, possible_moves: &[Move], game: &Game) -> Option<Move> {
+    /*fn select_best_move(&self, possible_moves: &[Move], game: &Game) -> Option<Move> {
         possible_moves.iter()
             .max_by_key(|mv| self.calculate_move_complexity(mv, game))
             .copied()
+    }*/
+
+    // Logic to calculate the complexity increase for a given move
+    // Consider factors like blocking the path of the red car,
+    // creating bottlenecks, etc.
+    // Example implementation; adjust based on your game's complexity criteria.
+
+    pub fn calculate_move_complexity(&self, vehicle: &Vehicle, game: &Game) -> usize {
+        let mut complexity = 0;
+
+        // 1. Base complexity on vehicle size
+        complexity += vehicle.size.0 as usize * vehicle.size.1 as usize;
+
+        // 2. Increase complexity based on the vehicle's orientation and surrounding space
+        match vehicle.orientation {
+            Orientation::Horizontal => {
+                complexity += self.check_spaces_horizontal(vehicle, game);
+            },
+            Orientation::Vertical => {
+                complexity += self.check_spaces_vertical(vehicle, game);
+            }
+        }
+
+        // 3. Further increase complexity based on the vehicle's distance from the exit
+        let exit_distance = GRID_WIDTH - 1 - vehicle.position.0 as usize;
+        complexity += exit_distance;
+
+        // 4. Consider the number of moves required to free a path
+        complexity += self.calculate_path_clearance(vehicle, game);
+
+        complexity
     }
 
-    fn calculate_move_complexity(&self, r#move: &Move, game: &Game) -> usize {
-        // Logic to calculate the complexity increase for a given move
-        // Consider factors like blocking the path of the red car,
-        // creating bottlenecks, etc.
-        // Example implementation; adjust based on your game's complexity criteria.
-        match r#move.direction {
-            MoveDirection::Forward => 10, // Assign some complexity value
-            MoveDirection::Backward => 5, // Different complexity for backward move
+    fn check_spaces_horizontal(&self, vehicle: &Vehicle, game: &Game) -> usize {
+        // Example implementation - tailor to your game's logic
+        let mut additional_complexity = 0;
+        let vehicle_end = vehicle.position.0 as usize + vehicle.size.0 as usize;
+
+        // Check spaces to the left
+        if vehicle.position.0 > 0 && game.is_position_empty((vehicle.position.0 - 1) as usize, vehicle.position.1 as usize) {
+            additional_complexity += 1;
         }
+
+        // Check spaces to the right
+        if vehicle_end < GRID_WIDTH && game.is_position_empty(vehicle_end, vehicle.position.1 as usize) {
+            additional_complexity += 1;
+        }
+
+        additional_complexity
+    }
+
+    fn check_spaces_vertical(&self, vehicle: &Vehicle, game: &Game) -> usize {
+        // Example implementation - tailor to your game's logic
+        let mut additional_complexity = 0;
+        let vehicle_end = vehicle.position.1 as usize + vehicle.size.1 as usize;
+
+        // Check spaces above
+        if vehicle.position.1 > 0 && game.is_position_empty(vehicle.position.0 as usize, (vehicle.position.1 - 1) as usize) {
+            additional_complexity += 1;
+        }
+
+        // Check spaces below
+        if vehicle_end < GRID_HEIGHT && game.is_position_empty(vehicle.position.0 as usize, vehicle_end) {
+            additional_complexity += 1;
+        }
+
+        additional_complexity
+    }
+
+    fn calculate_path_clearance(&self, vehicle: &Vehicle, game: &Game) -> usize {
+        // Advanced pathfinding logic or heuristics
+        // Placeholder implementation - replace with your algorithm
+        0
     }
 
     fn apply_move(&self, r#move: Move, game: &mut Game) {
