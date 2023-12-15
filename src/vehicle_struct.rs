@@ -31,7 +31,7 @@ impl VehicleStruct {
         VehicleStruct { vehicles, last_id } // Correctly return a VehicleStruct instance
     }
 
-    pub fn add_vehicle(&mut self, mut new_vehicle: Vehicle) -> bool {
+    /*pub fn add_vehicle(&mut self, mut new_vehicle: Vehicle) -> bool {
         for existing_vehicle in &self.vehicles {
             if PuzzleGenerator::check_for_overlap(existing_vehicle, &new_vehicle) {
                 return false; // Overlap detected, do not add the new vehicle
@@ -43,7 +43,7 @@ impl VehicleStruct {
 
         /*self.vehicles.push(new_vehicle);*/ // No overlap, add the new vehicle
         true // Vehicle added successfully
-    }
+    }*/
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -114,8 +114,8 @@ impl Vehicle {
         Vehicle { id, color, size, position, orientation, ansi_color }
     }
 
-    pub fn set_position(&mut self, position: (u8, u8)) {
-        self.position = position;
+    pub fn set_position(&mut self, position: (usize, usize)) {
+        self.position = (position.0 as u8, position.1 as u8);
     }
 
     // Associated function to generate a random ANSI color code

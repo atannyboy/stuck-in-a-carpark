@@ -46,7 +46,7 @@ impl PuzzleGenerator {
         while !self.puzzle_generated(game) {
             // Call add_vehicle_strategically with a reference to game
             self.add_vehicle_strategically(game, &mut vehicle_id);
-            /*self.move_vehicles_strategically(game);*/
+            self.move_vehicles_strategically(game);
             /*self.verify_solvability(game);*/
         }
         game.vehicles.clone()
@@ -329,41 +329,47 @@ impl PuzzleGenerator {
 
     // === start of movement code ===
 
-    /*pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
-        let mut moves_to_apply = Vec::new();
+    pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
+        let mut mv = Move::new(); // Declare 'mv' as mutable
     
         // Collect moves
         for vehicle in &game.vehicles {
-            if let Some(mv) = self.calculate_possible_moves(vehicle, game)
+            if let Some(new_mv) = self.calculate_possible_moves(vehicle, game)
                 .iter()
                 .max_by_key(|mv| self.calculate_move_complexity(mv, game)) {
-                moves_to_apply.push(*mv);
-                println!("Collected move for vehicle ID {}: Move {:?} steps in direction {:?}", vehicle.id, mv.steps, mv.direction);
+                println!("Collected move for vehicle ID {}: Move {:?} steps in direction {:?}", vehicle.id, new_mv.steps, new_mv.direction);
+    
+                mv = new_mv.clone(); // Assign the new value to 'mv'
+                break;
             }
         }
     
         // Apply moves
-        for mv in moves_to_apply {
-            self.apply_move(mv, game);
-        }
+        self.apply_move(mv, game); // 'mv' now has the updated value
+        game.display_carpark(&game.vehicles.clone(), &game.grid.clone());
     }    
 
     fn calculate_possible_moves(&self, vehicle: &Vehicle, game: &Game) -> Vec<Move> {
         let mut moves = Vec::new();
+        println!("Vehicle ID {}: Position: {:?} Size: {:?} Possible Moves: {:?}", vehicle.id, (vehicle.position.0 as usize, vehicle.position.1 as usize), (vehicle.size.0 as usize, vehicle.size.1 as usize), moves);
 
         // Check moves in the forward direction
         let forward_moves = self.check_direction(vehicle, game, MoveDirection::Forward);
-        moves.extend(forward_moves);
+        moves.extend(forward_moves.clone());
 
         // Check moves in the backward direction
         let backward_moves = self.check_direction(vehicle, game, MoveDirection::Backward);
-        moves.extend(backward_moves);
+        moves.extend(backward_moves.clone()); // Clone backward_moves here
+
+        println!("Forward Moves: {:?}", forward_moves);
+        println!("Backward Moves: {:?}", backward_moves);
 
         moves
     }
 
     fn check_direction(&self, vehicle: &Vehicle, game: &Game, direction: MoveDirection) -> Vec<Move> {
         let mut moves = Vec::new();
+        
         let (dx, dy) = match vehicle.orientation {
             Orientation::Horizontal => match direction {
                 MoveDirection::Forward => (1, 0),
@@ -374,55 +380,104 @@ impl PuzzleGenerator {
                 MoveDirection::Backward => (0, -1),
             },
         };
-
+    
+        // Debug: Print the direction being checked
+        println!("Checking direction {:?} for vehicle ID {}", direction, vehicle.id);
+    
         let mut steps = 1;
-        loop {
-            let new_position = self.calculate_new_position(vehicle.position, dx * steps, dy * steps);
-            if self.is_valid_position(new_position, vehicle.size, vehicle.orientation, game) {
-                let mut steps_u8 = steps as u8;
+        while let Ok(new_position) = self.calculate_new_position((vehicle.position.0 as usize, vehicle.position.1 as usize), dx * steps, dy * steps) {
+            // Debug: Print the new position being checked
+            println!("Checking new position {:?} for vehicle ID {}", new_position, vehicle.id);
+    
+            if self.is_valid_position((new_position.0 as usize, new_position.1 as usize), (vehicle.size.0 as usize, vehicle.size.1 as usize), vehicle.orientation, game, vehicle.id) {
+                // Debug: Print the successful move
+                println!("Valid move found for vehicle ID {}: Move {} steps in direction {:?}", vehicle.id, steps, direction);
+    
                 moves.push(Move {
                     vehicle_id: vehicle.id,
                     direction,
-                    steps: steps_u8,
+                    steps: steps as isize,
                 });
             } else {
+                // Debug: Print the reason for breaking the loop
+                println!("Invalid position reached for vehicle ID {}: {:?}", vehicle.id, new_position);
                 break;
             }
             steps += 1;
         }
-
-        moves
-    }
-
-    fn calculate_new_position(&self, original_position: (u8, u8), dx: isize, dy: isize) -> (u8, u8) {
-        // Calculate the new position based on the delta values (dx, dy)
-        // Ensure the new position does not exceed grid boundaries
-        let new_x = (original_position.0 as isize + dx).max(0).min(GRID_WIDTH as isize - 1) as u8;
-        let new_y = (original_position.1 as isize + dy).max(0).min(GRID_HEIGHT as isize - 1) as u8;
-        (new_x, new_y)
-    }
-
-    fn is_valid_position(&self, position: (u8, u8), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
-        // Example implementation; modify as per your game's logic.
-        let positions = self.get_occupied_positions(position, size, orientation);
-        positions.iter().all(|&pos| pos.0 < GRID_WIDTH as u8 && pos.1 < GRID_HEIGHT as u8 && game.is_position_empty(pos.0 as usize, pos.1 as usize))
-    }
     
-    fn get_occupied_positions(&self, position: (u8, u8), size: (u8, u8), orientation: Orientation) -> Vec<(u8, u8)> {
-        let mut positions = Vec::new();
+        // Debug: Print the total number of moves found
+        println!("Total moves found for vehicle ID {}: {}", vehicle.id, moves.len());
+    
+        moves
+    }    
+
+    fn calculate_new_position(&self, current_position: (usize, usize), dx: isize, dy: isize) -> Result<(usize, usize), &'static str> {
+        let new_x = current_position.0 as isize + dx;
+        let new_y = current_position.1 as isize + dy;
+    
+        if new_x < 0 || new_y < 0 || new_x >= GRID_WIDTH as isize || new_y >= GRID_HEIGHT as isize {
+            Err("New position is outside the grid boundaries")
+        } else {
+            Ok((new_x as usize, new_y as usize))
+        }
+    }   
+
+    fn is_valid_position(&self, new_position: (usize, usize), size: (usize, usize), orientation: Orientation, game: &Game, vehicle_id: usize) -> bool {
+        // Debug: Print the position being checked for validity
+        println!("Checking validity of new position: {:?}", new_position);
+    
+        let mut positions_to_check = Vec::new();
+    
+        match orientation {
+            Orientation::Horizontal => {
+                for x in new_position.0..new_position.0 + size.0 {
+                    positions_to_check.push((x, new_position.1));
+                }
+            },
+            Orientation::Vertical => {
+                for y in new_position.1..new_position.1 + size.1 {
+                    positions_to_check.push((new_position.0, y));
+                }
+            }
+        }
+    
+        let is_valid = positions_to_check.iter().all(|&pos| {
+            (pos.0 < GRID_WIDTH && pos.1 < GRID_HEIGHT) &&
+            (game.is_position_empty(pos.0, pos.1) || game.is_occupied_by_vehicle(pos.0, pos.1, vehicle_id))
+        });
+    
+        // Debug: Print the result of the validity check
+        println!("New position {:?} is valid: {}", new_position, is_valid);
+    
+        is_valid
+    }    
+    
+    fn get_occupied_positions(&self, position: (usize, usize), size: (usize, usize), orientation: Orientation) -> Vec<(usize, usize)> {
+        println!("Getting occupied positions for Position: {:?}, Size: {:?}, Orientation: {:?}", position, size, orientation);
+        
+        let mut occupied_positions = Vec::new();
         match orientation {
             Orientation::Horizontal => {
                 for i in 0..size.0 {
-                    positions.push((position.0 + i, position.1));
+                    let new_x = position.0 + i;
+                    if new_x < GRID_WIDTH {
+                        occupied_positions.push((new_x, position.1));
+                    }
                 }
             },
             Orientation::Vertical => {
                 for i in 0..size.1 {
-                    positions.push((position.0, position.1 + i));
+                    let new_y = position.1 + i;
+                    if new_y < GRID_HEIGHT {
+                        occupied_positions.push((position.0, new_y));
+                    }
                 }
             }
         }
-        positions
+    
+        println!("Occupied positions: {:?}", occupied_positions);
+        occupied_positions
     }    
 
     fn select_best_move(&self, possible_moves: &[Move], game: &Game) -> Option<Move> {
@@ -443,26 +498,30 @@ impl PuzzleGenerator {
     }
 
     fn apply_move(&self, r#move: Move, game: &mut Game) {
-        // Logic to apply the selected move to the game state
-        // Update the vehicle's position in the game grid
         if let Some(vehicle) = game.vehicles.iter_mut().find(|v| v.id == r#move.vehicle_id) {
-            let (dx, dy) = match r#move.direction {
-                MoveDirection::Forward => (r#move.steps as isize, 0),
-                MoveDirection::Backward => (-(r#move.steps as isize), 0),
+            let (dx, dy) = match vehicle.orientation {
+                Orientation::Horizontal => match r#move.direction {
+                    MoveDirection::Forward => (r#move.steps, 0),
+                    MoveDirection::Backward => (-r#move.steps, 0),
+                },
+                Orientation::Vertical => match r#move.direction {
+                    MoveDirection::Forward => (0, r#move.steps),
+                    MoveDirection::Backward => (0, -r#move.steps),
+                },
             };
-            let original_position = vehicle.position;
-            let new_position = self.calculate_new_position(vehicle.position, dx, dy);
-            vehicle.set_position(new_position);
 
-            // Debug statement to show movement
-            println!("Moved vehicle ID {} from {:?} to {:?}", vehicle.id, original_position, new_position);
+            println!("(dx, dy) = ({}, {})", dx, dy);
+    
+            if let Ok(new_position) = self.calculate_new_position((vehicle.position.0 as usize, vehicle.position.1 as usize), dx, dy) {
+                vehicle.set_position(new_position);
+                // Update the grid or any other necessary state here
+                game.update_grid_for_vehicle(r#move.vehicle_id);
+            } else {
+                // Handle the case where the new position is invalid
+                println!("Invalid move attempted for vehicle ID {}", vehicle.id);
+            }
         }
-        /*game.update_grid();*/ // Ensure you have this method to update the grid
-        
-        let grid_clone = game.grid.clone();
-        let vehicles_clone = game.vehicles.clone();
-        game.display_carpark(&vehicles_clone, &grid_clone);
-    }*/
+    }
 
     // === end of movement code ===
 }
@@ -524,17 +583,27 @@ impl ComplexityMeasure {
 
 // === start of movement code ===
 
-/*#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Move {
     vehicle_id: usize, // ID of the vehicle to move
     direction: MoveDirection, // Direction to move the vehicle
-    steps: u8, // Number of steps to move
+    steps: isize, // Number of steps to move
+}
+
+impl Move {
+    pub fn new() -> Self {
+        let vehicle_id = 0;
+        let direction = MoveDirection::Forward;
+        let steps = 1;
+
+        Move { vehicle_id, direction, steps }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 enum MoveDirection {
     Forward, // Towards the end of the grid
     Backward, // Towards the start of the grid
-}*/
+}
 
 // === end of movement code ===

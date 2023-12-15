@@ -111,11 +111,48 @@ impl Game {
         }
     }
 
+    pub fn update_grid_for_vehicle(&mut self, vehicle_id: usize) {
+        // First, clear the old positions of the vehicle on the grid
+        for row in self.grid.iter_mut() {
+            for cell in row.iter_mut() {
+                if *cell == Some(vehicle_id) {
+                    *cell = None;
+                }
+            }
+        }
+
+        // Then, set the new positions of the vehicle
+        if let Some(vehicle) = self.vehicles.iter().find(|v| v.id == vehicle_id) {
+            let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
+            match vehicle.orientation {
+                Orientation::Horizontal => {
+                    let end_x = std::cmp::min(x + vehicle.size.0 as usize, GRID_WIDTH);
+                    for i in x..end_x {
+                        self.grid[y][i] = Some(vehicle_id);
+                    }
+                },
+                Orientation::Vertical => {
+                    let end_y = std::cmp::min(y + vehicle.size.1 as usize, GRID_HEIGHT);
+                    for i in y..end_y {
+                        self.grid[i][x] = Some(vehicle_id);
+                    }
+                },
+            }
+        }        
+    }
+
     pub fn is_position_empty(&self, x: usize, y: usize) -> bool {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             false // If the index is out of bounds, return false
         } else {
             self.grid[y][x].is_none()
+        }
+    }
+
+    pub fn is_occupied_by_vehicle(&self, x: usize, y: usize, vehicle_id: usize) -> bool {
+        match self.grid[y][x] {
+            Some(id) => id == vehicle_id,
+            None => false,
         }
     }
 
