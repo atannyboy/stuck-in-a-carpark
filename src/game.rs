@@ -36,7 +36,7 @@ impl Game {
     }
 
     // Add or update this method to populate the grid based on vehicles
-    fn update_grid(&mut self) {
+    pub fn update_grid(&mut self) {
         // Clear the grid first
         self.grid = [[None; GRID_WIDTH]; GRID_WIDTH];
     
@@ -313,5 +313,24 @@ impl Game {
                 }
             }
         });
+    }
+
+    pub fn display_carpark(&mut self, vehicles: &[Vehicle], grid: &[[Option<usize>; GRID_WIDTH as usize]; GRID_WIDTH as usize]) {
+        let mut output = String::new();
+    
+        for y in 0..grid.len() {
+            for x in 0..grid[0].len() {
+                match grid[y][x] {
+                    Some(index) => {
+                        let vehicle = &vehicles[index];
+                        output.push_str(&format!("{}▓▓", vehicle.ansi_color.to_ansi())); // Color the vehicle
+                    },
+                    None => output.push_str("\x1b[90m░░"), // Grey for empty spaces
+                }
+            }
+            output.push_str("\x1b[0m\n"); // Reset color and new line
+        }
+    
+        println!("{}", output);
     }
 }

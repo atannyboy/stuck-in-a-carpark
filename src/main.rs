@@ -34,7 +34,8 @@ fn main() {
     let initial_vehicles = puzzle_generator.generate_puzzle(&mut game_manager.game);
     game_manager.update_vehicles(initial_vehicles.clone());
 
-    display_carpark(&initial_vehicles, &game_manager.game.grid);
+    let grid_clone = game_manager.game.grid.clone();
+    game_manager.game.display_carpark(&initial_vehicles, &grid_clone);
 
     let mut gl = GlGraphics::new(opengl);
     let mut cursor_pos: [f64; 2] = [0.0, 0.0];
@@ -57,23 +58,4 @@ fn main() {
             // game_manager.update_vehicles(new_vehicles);
         }
     }
-}
-
-fn display_carpark(vehicles: &[Vehicle], grid: &[[Option<usize>; GRID_WIDTH as usize]; GRID_WIDTH as usize]) {
-    let mut output = String::new();
-
-    for y in 0..grid.len() {
-        for x in 0..grid[0].len() {
-            match grid[y][x] {
-                Some(index) => {
-                    let vehicle = &vehicles[index];
-                    output.push_str(&format!("{}▓▓", vehicle.ansi_color.to_ansi())); // Color the vehicle
-                },
-                None => output.push_str("\x1b[90m░░"), // Grey for empty spaces
-            }
-        }
-        output.push_str("\x1b[0m\n"); // Reset color and new line
-    }
-
-    println!("{}", output);
 }

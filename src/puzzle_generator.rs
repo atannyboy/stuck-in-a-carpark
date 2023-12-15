@@ -293,7 +293,7 @@ impl PuzzleGenerator {
                 });
 
                 if path_clear {
-                    /*println!("Puzzle is solvable: Red car has a clear path to the exit.");*/
+                    println!("Puzzle is solvable: Red car has a clear path to the exit.");
                 } else {
                     println!("Puzzle may not be solvable: Red car's path to the exit is blocked.");
                 }
@@ -332,6 +332,7 @@ impl PuzzleGenerator {
                 .iter()
                 .max_by_key(|mv| self.calculate_move_complexity(mv, game)) {
                 moves_to_apply.push(*mv);
+                println!("Collected move for vehicle ID {}: Move {:?} steps in direction {:?}", vehicle.id, mv.steps, mv.direction);
             }
         }
     
@@ -390,14 +391,33 @@ impl PuzzleGenerator {
     fn calculate_new_position(&self, original_position: (u8, u8), dx: isize, dy: isize) -> (u8, u8) {
         // Calculate the new position based on the delta values (dx, dy)
         // Ensure the new position does not exceed grid boundaries
-        (0, 0)
+        let new_x = (original_position.0 as isize + dx).max(0).min(GRID_WIDTH as isize - 1) as u8;
+        let new_y = (original_position.1 as isize + dy).max(0).min(GRID_HEIGHT as isize - 1) as u8;
+        (new_x, new_y)
     }
 
     fn is_valid_position(&self, position: (u8, u8), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
-        // Check if the new position is valid by ensuring it does not
-        // result in overlapping with other vehicles or going outside the grid
-        false
+        // Example implementation; modify as per your game's logic.
+        let positions = self.get_occupied_positions(position, size, orientation);
+        positions.iter().all(|&pos| pos.0 < GRID_WIDTH as u8 && pos.1 < GRID_HEIGHT as u8 && game.is_position_empty(pos.0 as usize, pos.1 as usize))
     }
+    
+    fn get_occupied_positions(&self, position: (u8, u8), size: (u8, u8), orientation: Orientation) -> Vec<(u8, u8)> {
+        let mut positions = Vec::new();
+        match orientation {
+            Orientation::Horizontal => {
+                for i in 0..size.0 {
+                    positions.push((position.0 + i, position.1));
+                }
+            },
+            Orientation::Vertical => {
+                for i in 0..size.1 {
+                    positions.push((position.0, position.1 + i));
+                }
+            }
+        }
+        positions
+    }    
 
     fn select_best_move(&self, possible_moves: &[Move], game: &Game) -> Option<Move> {
         possible_moves.iter()
@@ -409,12 +429,33 @@ impl PuzzleGenerator {
         // Logic to calculate the complexity increase for a given move
         // Consider factors like blocking the path of the red car,
         // creating bottlenecks, etc.
-        0
+        // Example implementation; adjust based on your game's complexity criteria.
+        match r#move.direction {
+            MoveDirection::Forward => 10, // Assign some complexity value
+            MoveDirection::Backward => 5, // Different complexity for backward move
+        }
     }
 
     fn apply_move(&self, r#move: Move, game: &mut Game) {
         // Logic to apply the selected move to the game state
         // Update the vehicle's position in the game grid
+        if let Some(vehicle) = game.vehicles.iter_mut().find(|v| v.id == r#move.vehicle_id) {
+            let (dx, dy) = match r#move.direction {
+                MoveDirection::Forward => (r#move.steps as isize, 0),
+                MoveDirection::Backward => (-(r#move.steps as isize), 0),
+            };
+            let original_position = vehicle.position;
+            let new_position = self.calculate_new_position(vehicle.position, dx, dy);
+            vehicle.set_position(new_position);
+
+            // Debug statement to show movement
+            println!("Moved vehicle ID {} from {:?} to {:?}", vehicle.id, original_position, new_position);
+        }
+        game.update_grid(); // Ensure you have this method to update the grid
+        
+        let grid_clone = game.grid.clone();
+        let vehicles_clone = game.vehicles.clone();
+        game.display_carpark(&vehicles_clone, &grid_clone);
     }
 
     // === end of movement code ===
