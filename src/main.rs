@@ -32,7 +32,12 @@ fn main() {
 
     // Generate initial puzzle with vehicles
     let initial_vehicles = puzzle_generator.generate_puzzle(&mut game_manager.game);
-    game_manager.update_vehicles(initial_vehicles.clone());
+    /*game_manager.update_vehicles(initial_vehicles.clone());*/
+    let vehicles_count = initial_vehicles.len();
+    game_manager.game.vehicles = initial_vehicles.clone();
+    
+    println!("Setting vehicles. Vehicle count: {}", vehicles_count);
+    game_manager.game.update_grid(); // Update grid every time vehicles are set
 
     let grid_clone = game_manager.game.grid.clone();
     game_manager.game.display_carpark(&initial_vehicles, &grid_clone);

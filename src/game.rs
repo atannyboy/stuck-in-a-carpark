@@ -28,12 +28,12 @@ impl Game {
     }
 
     // Add this method to update vehicles
-    pub fn set_vehicles(&mut self, vehicles: Vec<Vehicle>) {
+    /*pub fn set_vehicles(&mut self, vehicles: Vec<Vehicle>) {
         let vehicles_count = vehicles.len();
         self.vehicles = vehicles;
         println!("Setting vehicles. Vehicle count: {}", vehicles_count);
         self.update_grid(); // Update grid every time vehicles are set
-    }
+    }*/
 
     // Add or update this method to populate the grid based on vehicles
     pub fn update_grid(&mut self) {

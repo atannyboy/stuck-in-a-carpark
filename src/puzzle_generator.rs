@@ -17,10 +17,10 @@ impl GameManager {
         GameManager { game }
     }
 
-    pub fn update_vehicles(&mut self, vehicles: Vec<Vehicle>) {
+    /*pub fn update_vehicles(&mut self, vehicles: Vec<Vehicle>) {
         self.game.set_vehicles(vehicles);
         // other state updates as needed
-    }
+    }*/
 
     // other methods to manage game state
 }
