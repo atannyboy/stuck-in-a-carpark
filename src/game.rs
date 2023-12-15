@@ -36,12 +36,12 @@ impl Game {
     }*/
 
     // Add or update this method to populate the grid based on vehicles
-    pub fn update_grid(&mut self) {
+    /*pub fn update_grid(&mut self) {
         // Clear the grid first
         self.grid = [[None; GRID_WIDTH]; GRID_WIDTH];
     
         for (index, vehicle) in self.vehicles.iter().enumerate() {
-            println!("Placing vehicle on grid ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, vehicle.position, vehicle.orientation);
+            println!("Placing vehicle on grid ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, vehicle.size, vehicle.position, vehicle.orientation);
             
             let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
             /*let (width, height) = match vehicle.orientation {
@@ -87,24 +87,24 @@ impl Game {
                 },
             }
         }
-    }  
+    } */ 
     
     // Method to update the grid with a new vehicle
-    pub fn update_grid_with_new_vehicle(&mut self, vehicle: &Vehicle) {
+    pub fn update_grid_with_new_vehicle(&mut self, vehicle: &Vehicle, vehicle_id: usize) {
         let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
-        println!("Updating grid with new vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, vehicle.position, vehicle.orientation);
+        println!("Updating grid with new vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, vehicle.size, vehicle.position, vehicle.orientation);
         match vehicle.orientation {
             Orientation::Horizontal => {
                 for i in 0..vehicle.size.0 as usize {
                     if x + i < GRID_WIDTH {
-                        self.grid[y][x + i] = Some(vehicle.id); // Assign vehicle's ID
+                        self.grid[y][x + i] = Some(vehicle_id); // Assign vehicle's ID
                     }
                 }
             },
             Orientation::Vertical => {
                 for i in 0..vehicle.size.1 as usize {
                     if y + i < GRID_HEIGHT {
-                        self.grid[y + i][x] = Some(vehicle.id); // Assign vehicle's ID
+                        self.grid[y + i][x] = Some(vehicle_id); // Assign vehicle's ID
                     }
                 }
             },

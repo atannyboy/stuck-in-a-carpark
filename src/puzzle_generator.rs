@@ -7,12 +7,12 @@ use std::collections::HashSet;
 pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
 
-pub struct GameManager {
+/*pub struct GameManager {
     pub game: Game,
     // other fields as needed
-}
+}*/
 
-impl GameManager {
+/*impl GameManager {
     pub fn new(game: Game) -> Self {
         GameManager { game }
     }
@@ -23,7 +23,7 @@ impl GameManager {
     }*/
 
     // other methods to manage game state
-}
+}*/
 
 pub struct PuzzleGenerator {
 	complexity_measure: ComplexityMeasure,
@@ -41,21 +41,18 @@ impl PuzzleGenerator {
 
     // Updated to accept a reference to Game
     pub fn generate_puzzle(&mut self, game: &mut Game) -> Vec<Vehicle> {
-        self.place_red_car();
-
         let mut vehicle_id: usize = 0;
+        self.place_red_car(game, &mut vehicle_id);
         while !self.puzzle_generated(game) {
-            vehicle_id += 1;
-
             // Call add_vehicle_strategically with a reference to game
-            self.add_vehicle_strategically(game, vehicle_id);
-            self.move_vehicles_strategically(game);
-            self.verify_solvability(game);
+            self.add_vehicle_strategically(game, &mut vehicle_id);
+            /*self.move_vehicles_strategically(game);*/
+            /*self.verify_solvability(game);*/
         }
-        self.vehicle_struct.vehicles.clone()
+        game.vehicles.clone()
     }
 
-	fn place_red_car(&mut self) {
+	fn place_red_car(&mut self, game: &mut Game, vehicle_id: &mut usize){
 		// Define the red car characteristics, assuming:
 		// - ID: 0
 		// - Size: (2, 1), meaning it occupies two horizontal grid spaces
@@ -74,18 +71,22 @@ impl PuzzleGenerator {
 
 		// Place the red car at the exit
 		// Assuming 'game' is a mutable reference to the Game struct and has a method to add vehicles
-		self.vehicle_struct.add_vehicle(red_car);
+        game.update_grid_with_new_vehicle(&red_car, *vehicle_id);
+	    game.vehicles.push(red_car);
+
+        println!("Vehicle id: {}", vehicle_id);
+        *vehicle_id += 1;
 	}
 
-    pub fn add_vehicle_strategically(&mut self, game: &mut Game, vehicle_id: usize) -> Vec<Vehicle> {
+    pub fn add_vehicle_strategically(&mut self, game: &mut Game, vehicle_id: &mut usize) -> Vec<Vehicle> {
         loop {
             let vehicle_size = self.generate_random_vehicle_size();
             let random_orientation = self.generate_random_orientation();
             let mut possible_positions: Vec<((usize, usize), Orientation)> = match (vehicle_size, random_orientation) {
-                ((1, 2), Orientation::Vertical) => self.generate_possible_positions_1x2(game, vehicle_size, Orientation::Vertical),
-                ((2, 1), Orientation::Horizontal) => self.generate_possible_positions_1x2(game, vehicle_size, Orientation::Horizontal),
-                ((1, 3), Orientation::Vertical) => self.generate_possible_positions_1x3(game, vehicle_size, Orientation::Vertical),
-                ((3, 1), Orientation::Horizontal) => self.generate_possible_positions_1x3(game, vehicle_size, Orientation::Horizontal),
+                ((1, 2), Orientation::Vertical) => self.generate_possible_positions_1x2(game, vehicle_size, *vehicle_id, Orientation::Vertical),
+                ((2, 1), Orientation::Horizontal) => self.generate_possible_positions_1x2(game, vehicle_size, *vehicle_id, Orientation::Horizontal),
+                ((1, 3), Orientation::Vertical) => self.generate_possible_positions_1x3(game, vehicle_size, *vehicle_id, Orientation::Vertical),
+                ((3, 1), Orientation::Horizontal) => self.generate_possible_positions_1x3(game, vehicle_size, *vehicle_id, Orientation::Horizontal),
                 _ => Vec::new(),
             };
 
@@ -107,30 +108,35 @@ impl PuzzleGenerator {
 
             if let Some(position) = best_position {
                 let vehicle = self.generate_vehicle(position, best_orientation);
-                if self.vehicle_struct.add_vehicle(vehicle) {
-                    println!("Successfully added vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
+                /*if self.vehicle_struct.add_vehicle(vehicle) {*/
+                    println!("Successfully added vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, vehicle.size, position, best_orientation);
                     // Update the game's grid to reflect the new vehicle
-                    game.update_grid_with_new_vehicle(&vehicle);
+                    game.update_grid_with_new_vehicle(&vehicle, *vehicle_id);
+                    game.vehicles.push(vehicle);
+
+                    println!("Vehicle id: {}", vehicle_id);
+                    *vehicle_id += 1;
+
                     break;
-                } else {
+                /*} else {
                     println!("Failed to add vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
                     // Remove the failed position from possible_positions and retry
                     possible_positions.retain(|&(p, o)| p != position || o != best_orientation);
-                }
+                }*/
             } else {
                 println!("No suitable position found for vehicle ID: {}", vehicle_id);
                 break;
             }
         }
         
-        self.vehicle_struct.vehicles.clone() // Return the updated list of vehicles
+        game.vehicles.clone() // Return the updated list of vehicles
     }
 	
 	fn generate_vehicle(&mut self, position: (usize, usize), orientation: Orientation) -> Vehicle {
 		let mut rng = rand::thread_rng();
 	
 		let color_options: Vec<AnsiColorCode> = vec![
-			AnsiColorCode::Red,
+			/*AnsiColorCode::Red,*/
 			AnsiColorCode::Green,
             AnsiColorCode::Blue,
             AnsiColorCode::Cyan,
@@ -163,7 +169,7 @@ impl PuzzleGenerator {
         self.used_colors.insert(ansi_color.to_string());
 
         // Randomly generate other attributes
-        let id = 0;
+        let vehicle_id = 0;
         let sizes = match orientation {
             Orientation::Horizontal => [(2, 1), (3, 1)],
             Orientation::Vertical => [(1, 2), (1, 3)],
@@ -171,8 +177,8 @@ impl PuzzleGenerator {
         let size = sizes[rng.gen_range(0..sizes.len())];
 
         // Create and return the vehicle using the RGBA color and the provided position
-        let vehicle = Vehicle::new(id, rgba_color, size, (position.0 as u8, position.1 as u8), orientation, ansi_color);
-		println!("Generated vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", id, size, position, orientation);
+        let vehicle = Vehicle::new(vehicle_id, rgba_color, size, (position.0 as u8, position.1 as u8), orientation, ansi_color);
+		println!("Generated vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, size, position, orientation);
 		
     	vehicle
     }
@@ -199,7 +205,7 @@ impl PuzzleGenerator {
         *orientations.choose(&mut rng).expect("Array is non-empty")
     }
 
-    fn generate_possible_positions_1x2(&self, game: &mut Game, vehicle_size: (u8, u8), orientation: Orientation) -> Vec<((usize, usize), Orientation)> {
+    fn generate_possible_positions_1x2(&self, game: &mut Game, vehicle_size: (u8, u8), vehicle_id: usize, orientation: Orientation) -> Vec<((usize, usize), Orientation)> {
         let mut all_positions = Vec::new();
         for y in 0..GRID_HEIGHT {
             for x in 0..GRID_WIDTH {
@@ -216,7 +222,7 @@ impl PuzzleGenerator {
         all_positions
     }
 
-    fn generate_possible_positions_1x3(&self, game: &mut Game, vehicle_size: (u8, u8), orientation: Orientation) -> Vec<((usize, usize), Orientation)> {
+    fn generate_possible_positions_1x3(&self, game: &mut Game, vehicle_size: (u8, u8), vehicle_id: usize, orientation: Orientation) -> Vec<((usize, usize), Orientation)> {
         let mut all_positions = Vec::new();
         for y in 0..GRID_HEIGHT {
             for x in 0..GRID_WIDTH {
@@ -281,7 +287,7 @@ impl PuzzleGenerator {
 
     pub fn verify_solvability(&self, game: &Game) {
         // Assuming the red car needs to reach the far right of the center row to exit
-        if let Some(red_car) = self.vehicle_struct.vehicles.iter().find(|v| v.ansi_color == AnsiColorCode::Red && v.orientation == Orientation::Horizontal) {
+        if let Some(red_car) = game.vehicles.iter().find(|v| v.ansi_color == AnsiColorCode::Red && v.orientation == Orientation::Horizontal) {
             // The center row can be calculated as GRID_HEIGHT / 2
             let center_row = GRID_HEIGHT / 2;
             
@@ -310,7 +316,7 @@ impl PuzzleGenerator {
 
 	fn puzzle_generated(&self, game: &Game) -> bool {
 		const MIN_VEHICLES_REQUIRED: usize = 5;
-		let vehicles_placed = self.vehicle_struct.vehicles.len();
+		let vehicles_placed = game.vehicles.len();
 	
         if vehicles_placed >= MIN_VEHICLES_REQUIRED {
             println!("Puzzle generated with {} vehicles. Checking solvability.", vehicles_placed);
@@ -323,7 +329,7 @@ impl PuzzleGenerator {
 
     // === start of movement code ===
 
-    pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
+    /*pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
         let mut moves_to_apply = Vec::new();
     
         // Collect moves
@@ -451,12 +457,12 @@ impl PuzzleGenerator {
             // Debug statement to show movement
             println!("Moved vehicle ID {} from {:?} to {:?}", vehicle.id, original_position, new_position);
         }
-        game.update_grid(); // Ensure you have this method to update the grid
+        /*game.update_grid();*/ // Ensure you have this method to update the grid
         
         let grid_clone = game.grid.clone();
         let vehicles_clone = game.vehicles.clone();
         game.display_carpark(&vehicles_clone, &grid_clone);
-    }
+    }*/
 
     // === end of movement code ===
 }
@@ -518,7 +524,7 @@ impl ComplexityMeasure {
 
 // === start of movement code ===
 
-#[derive(Clone, Copy, Debug)]
+/*#[derive(Clone, Copy, Debug)]
 struct Move {
     vehicle_id: usize, // ID of the vehicle to move
     direction: MoveDirection, // Direction to move the vehicle
@@ -529,6 +535,6 @@ struct Move {
 enum MoveDirection {
     Forward, // Towards the end of the grid
     Backward, // Towards the start of the grid
-}
+}*/
 
 // === end of movement code ===

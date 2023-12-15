@@ -38,10 +38,10 @@ impl VehicleStruct {
             }
         }
         // Assign the next ID to the new vehicle
-        new_vehicle.id = self.last_id;
-        self.last_id += 1; // Increment the last_id for the next vehicle
+        /*new_vehicle.id = self.last_id;
+        self.last_id += 1;*/ // Increment the last_id for the next vehicle
 
-        self.vehicles.push(new_vehicle); // No overlap, add the new vehicle
+        /*self.vehicles.push(new_vehicle);*/ // No overlap, add the new vehicle
         true // Vehicle added successfully
     }
 }
