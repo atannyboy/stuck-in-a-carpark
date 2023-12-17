@@ -499,8 +499,13 @@ impl PuzzleGenerator {
     pub fn calculate_move_complexity(&self, vehicle: &Vehicle, game: &Game) -> usize {
         let mut complexity = 0;
 
+        // Debug: Initial complexity
+        println!("Initial complexity for vehicle ID {}: {}", vehicle.id, complexity);
+
         // 1. Base complexity on vehicle size
         complexity += vehicle.size.0 as usize * vehicle.size.1 as usize;
+        // Debug: After size-based complexity calculation
+        println!("Complexity after size for vehicle ID {}: {}", vehicle.id, complexity);
 
         // 2. Increase complexity based on the vehicle's orientation and surrounding space
         match vehicle.orientation {
@@ -511,13 +516,22 @@ impl PuzzleGenerator {
                 complexity += self.check_spaces_vertical(vehicle, game);
             }
         }
+        // Debug: After orientation-based complexity calculation
+        println!("Complexity after orientation for vehicle ID {}: {}", vehicle.id, complexity);
 
         // 3. Further increase complexity based on the vehicle's distance from the exit
         let exit_distance = GRID_WIDTH - 1 - vehicle.position.0 as usize;
         complexity += exit_distance;
+        // Debug: After distance-based complexity calculation
+        println!("Complexity after exit distance for vehicle ID {}: {}", vehicle.id, complexity);
 
         // 4. Consider the number of moves required to free a path
         complexity += self.calculate_path_clearance(vehicle, game);
+        // Debug: After path clearance complexity calculation
+        println!("Complexity after path clearance for vehicle ID {}: {}", vehicle.id, complexity);
+
+        // Debug: Final complexity
+        println!("Final complexity for vehicle ID {}: {}", vehicle.id, complexity);
 
         complexity
     }
@@ -608,7 +622,7 @@ impl ComplexityMeasure {
         let mut complexity = 0;
 
         // Debug message for initial complexity
-        println!("Initial complexity: {}", complexity);
+        /*println!("Initial complexity: {}", complexity);*/
 
         // Increase complexity for positions closer to the center of the grid
         let center_x = GRID_WIDTH / 2;
@@ -617,7 +631,7 @@ impl ComplexityMeasure {
         complexity += (center_y as isize - position.1 as isize).abs() as usize;
 
         // Debug message after calculating distance to center
-        println!("Complexity after center distance calculation: {}", complexity);
+        /*println!("Complexity after center distance calculation: {}", complexity);*/
 
         // Increase complexity based on the orientation and size
         match orientation {
@@ -626,7 +640,7 @@ impl ComplexityMeasure {
                     if game.is_position_empty(xi, position.1) {
                         complexity += 1; // Increase complexity for each empty space
                         // Debug message for each position check
-                        println!("Complexity increased for Horizontal at position ({}, {}), current complexity: {}", xi, position.1, complexity);
+                        /*println!("Complexity increased for Horizontal at position ({}, {}), current complexity: {}", xi, position.1, complexity);*/
                     }
                 }
             },
@@ -635,14 +649,14 @@ impl ComplexityMeasure {
                     if game.is_position_empty(position.0, yi) {
                         complexity += 1; // Increase complexity for each empty space
                         // Debug message for each position check
-                        println!("Complexity increased for Vertical at position ({}, {}), current complexity: {}", position.0, yi, complexity);
+                        /*println!("Complexity increased for Vertical at position ({}, {}), current complexity: {}", position.0, yi, complexity);*/
                     }
                 }
             }
         }
 
         // Final debug message for complexity
-        println!("Final calculated complexity: {}", complexity);
+        /*println!("Final calculated complexity: {}", complexity);*/
 
         complexity
     }
