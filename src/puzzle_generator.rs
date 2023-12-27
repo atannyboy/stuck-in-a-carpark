@@ -6,6 +6,7 @@ use std::collections::HashSet;
 
 pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
+const DESIRED_COMPLEXITY_THRESHOLD: usize = 150;
 
 /*pub struct GameManager {
     pub game: Game,
@@ -26,33 +27,82 @@ pub const GRID_HEIGHT: usize = 7;
 }*/
 
 pub struct PuzzleGenerator {
-	complexity_measure: ComplexityMeasure,
-	pub vehicle_struct: VehicleStruct,
-	used_colors: HashSet<String>, // Using a HashSet to efficiently track used colors
+    complexity_measure: ComplexityMeasure,
+    desired_complexity_threshold: usize,
+    current_complexity: usize, // New field to store the current complexity
+    pub vehicle_struct: VehicleStruct,
+    used_colors: HashSet<String>,
 }
 
 impl PuzzleGenerator {
-	pub fn new() -> Self {
-		let complexity_measure = ComplexityMeasure::new();
-		let vehicle_struct = VehicleStruct::new();
-		let used_colors = HashSet::new();
-		PuzzleGenerator { complexity_measure, vehicle_struct, used_colors }
-	}
+    pub fn new() -> Self {
+        let complexity_measure = ComplexityMeasure::new();
+        let desired_complexity_threshold = DESIRED_COMPLEXITY_THRESHOLD;
+        let vehicle_struct = VehicleStruct::new();
+        let used_colors = HashSet::new();
+        PuzzleGenerator {
+            complexity_measure,
+            desired_complexity_threshold,
+            current_complexity: 0, // Initialize current complexity to 0
+            vehicle_struct,
+            used_colors,
+        }
+    }
 
-    // Updated to accept a reference to Game
     pub fn generate_puzzle(&mut self, game: &mut Game) -> Vec<Vehicle> {
         let mut vehicle_id: usize = 0;
         self.place_red_car(game, &mut vehicle_id);
-        while !self.puzzle_generated(game) {
-            // Call add_vehicle_strategically with a reference to game
+    
+        /*while !self.puzzle_generated(game)*/ loop {
             self.add_vehicle_strategically(game, &mut vehicle_id);
-            self.move_vehicles_strategically(game);
-            /*self.verify_solvability(game);*/
+            
+            // Calculate combined complexity after each vehicle placement
+            //let current_complexity = self.calculate_current_puzzle_complexity(game);
+    
+            // Move vehicles to increase puzzle complexity
+            /*while self.should_increase_complexity(game, current_complexity) {
+                self.move_vehicles_strategically(game);
+            }*/
+            
+            // Check if the puzzle meets your complexity criteria
+            if self.is_puzzle_complex_enough(game) {
+                break;
+            }
         }
+    
         game.vehicles.clone()
     }
+    
+    fn calculate_current_puzzle_complexity(&self, game: &Game) -> usize {
+        let mut total_complexity = 0;
+        for vehicle in &game.vehicles {
+            total_complexity += self.complexity_measure.calculate_for_vehicle_placement(
+                game,
+                (vehicle.position.0 as usize, vehicle.position.1 as usize),
+                vehicle.size,
+                vehicle.orientation
+            );
+        }
 
-	fn place_red_car(&mut self, game: &mut Game, vehicle_id: &mut usize){
+        println!("Total Complexity: {}", total_complexity);
+
+        total_complexity
+    }
+    
+    fn should_increase_complexity(&self, game: &Game, current_complexity: usize) -> bool {
+        // Determine if the current complexity is below a certain threshold
+        // and decide if you need to make more moves to increase complexity
+        current_complexity < self.desired_complexity_threshold
+    }
+    
+    fn is_puzzle_complex_enough(&self, game: &Game) -> bool {
+        println!("Desired Complexity Threshold: {}", self.desired_complexity_threshold);
+
+        // Check if the puzzle meets the complexity criteria you've set
+        self.calculate_current_puzzle_complexity(game) >= self.desired_complexity_threshold
+    }
+
+	fn place_red_car(&mut self, game: &mut Game, vehicle_id: &mut usize) {
 		// Define the red car characteristics, assuming:
 		// - ID: 0
 		// - Size: (2, 1), meaning it occupies two horizontal grid spaces
@@ -80,59 +130,94 @@ impl PuzzleGenerator {
 	}
 
     pub fn add_vehicle_strategically(&mut self, game: &mut Game, vehicle_id: &mut usize) -> Vec<Vehicle> {
-        loop {
-            let vehicle_size = self.generate_random_vehicle_size();
-            let random_orientation = self.generate_random_orientation();
-            let mut possible_positions: Vec<((usize, usize), Orientation)> = match (vehicle_size, random_orientation) {
-                ((1, 2), Orientation::Vertical) => self.generate_possible_positions_1x2(game, vehicle_size, *vehicle_id, Orientation::Vertical),
-                ((2, 1), Orientation::Horizontal) => self.generate_possible_positions_1x2(game, vehicle_size, *vehicle_id, Orientation::Horizontal),
-                ((1, 3), Orientation::Vertical) => self.generate_possible_positions_1x3(game, vehicle_size, *vehicle_id, Orientation::Vertical),
-                ((3, 1), Orientation::Horizontal) => self.generate_possible_positions_1x3(game, vehicle_size, *vehicle_id, Orientation::Horizontal),
-                _ => Vec::new(),
-            };
+        let vehicle_size = self.generate_random_vehicle_size();
+        let random_orientation = self.generate_random_orientation();
+        let mut possible_positions: Vec<((usize, usize), Orientation)> = match (vehicle_size, random_orientation) {
+            ((1, 2), Orientation::Vertical) => self.generate_possible_positions_1x2(game, vehicle_size, *vehicle_id, Orientation::Vertical),
+            ((2, 1), Orientation::Horizontal) => self.generate_possible_positions_1x2(game, vehicle_size, *vehicle_id, Orientation::Horizontal),
+            ((1, 3), Orientation::Vertical) => self.generate_possible_positions_1x3(game, vehicle_size, *vehicle_id, Orientation::Vertical),
+            ((3, 1), Orientation::Horizontal) => self.generate_possible_positions_1x3(game, vehicle_size, *vehicle_id, Orientation::Horizontal),
+            _ => Vec::new(),
+        };
 
-            let mut best_position: Option<(usize, usize)> = None;
-            let mut best_orientation = Orientation::Horizontal;
-            let mut best_complexity = 0;
-            
+        let mut new_possible_positions: Vec<((usize, usize), (usize, usize), Orientation)> = Vec::new();
+        // Iterate and update each element
+        for possible_position in possible_positions.iter_mut() {
+            let (pos, ori) = *possible_position; // Destructure the tuple to get its values
+            new_possible_positions.push((pos, (vehicle_size.0 as usize, vehicle_size.1 as usize), ori));
+        }
 
-            for (position, orientation) in &possible_positions {
+        let mut best_position: (usize, usize) = (0, 0);
+        let mut best_orientation: Orientation = Orientation::Horizontal;
+        let mut best_complexity: usize = 0;
+        let mut best_size: (usize, usize) = (3, 1);
+        
+        /*loop {*/
+            // Pick the best positioned vehicle out of all possible positions
+            for (position, size, orientation) in &new_possible_positions {
                 if game.is_position_empty(position.0, position.1) {
-                    let complexity = self.complexity_measure.calculate(game, *position, vehicle_size, *orientation);
+                    let complexity = self.complexity_measure.calculate_for_vehicle_placement(game, *position, vehicle_size, *orientation);
+                    
+                    // Debug message for comparing vehicle complexities
+                    println!("Comparing Vehicle - Position: {:?}, Size: {:?}, Orientation: {:?}, Complexity: {}", position, size, orientation, complexity);
+
                     if complexity > best_complexity {
                         best_complexity = complexity;
-                        best_position = Some(*position);
+                        best_position = *position;
                         best_orientation = *orientation;
+                        best_size = (vehicle_size.0 as usize, vehicle_size.1 as usize);
+
+                        // Debug message for the best choice at this point
+                        println!("New Best Vehicle - Position: {:?}, Size: {:?}, Orientation: {:?}, Complexity: {}", best_position, best_size, best_orientation, best_complexity);
                     }
                 }
             }
 
-            if let Some(position) = best_position {
-                let vehicle = self.generate_vehicle(position, best_orientation, vehicle_id);
-                /*if self.vehicle_struct.add_vehicle(vehicle) {*/
-                    println!("Successfully added vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, vehicle.size, position, best_orientation);
-                    // Update the game's grid to reflect the new vehicle
-                    game.update_grid_with_new_vehicle(&vehicle, *vehicle_id);
-                    game.vehicles.push(vehicle);
+            // Add the best positioned vehicle to the carpark grid
+            for (position, size, orientation) in &new_possible_positions {
+                if (*position == best_position) && (*size == best_size) && (*orientation == best_orientation)  {
+                    let vehicle = self.generate_vehicle(*position, *size, *orientation, vehicle_id);
+                    /*if self.vehicle_struct.add_vehicle(vehicle) {*/
 
-                    *vehicle_id += 1;
+                        // Debug message for the vehicle being added
+                        println!("Adding Vehicle - ID: {}, Position: {:?}, Size: {:?}, Orientation: {:?}", vehicle_id, position, size, orientation);
 
-                    break;
-                /*} else {
-                    println!("Failed to add vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
-                    // Remove the failed position from possible_positions and retry
-                    possible_positions.retain(|&(p, o)| p != position || o != best_orientation);
-                }*/
-            } else {
-                println!("No suitable position found for vehicle ID: {}", vehicle_id);
-                break;
+                        // Update the game's grid to reflect the new vehicle
+                        game.update_grid_with_new_vehicle(&vehicle, *vehicle_id);
+                        game.vehicles.push(vehicle);
+
+                        *vehicle_id += 1;
+
+                        // Calculate the complexity for this vehicle placement
+                        let placement_complexity = self.complexity_measure.calculate_for_vehicle_placement(
+                            game,
+                            *position,
+                            vehicle.size,
+                            best_orientation
+                        );
+                        // Add this complexity to the current complexity of the puzzle
+                        self.current_complexity += placement_complexity;
+
+                        // Debug message for the total complexity after adding this vehicle
+                        println!("Total Complexity after adding vehicle ID {}: {}", vehicle_id, self.current_complexity);
+
+                        /*break;*/
+                    /*} else {
+                        println!("Failed to add vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
+                        // Remove the failed position from possible_positions and retry
+                        possible_positions.retain(|&(p, o)| p != position || o != best_orientation);
+                    }*/
+                } else {
+                    println!("No suitable position found for vehicle ID: {}, position: ({}, {})", vehicle_id, position.0, position.1);
+                    /*break;*/
+                }
             }
-        }
+        /*}*/
         
         game.vehicles.clone() // Return the updated list of vehicles
     }
 	
-	fn generate_vehicle(&mut self, position: (usize, usize), orientation: Orientation, vehicle_id: &mut usize) -> Vehicle {
+	fn generate_vehicle(&mut self, position: (usize, usize), size: (usize, usize), orientation: Orientation, vehicle_id: &mut usize) -> Vehicle {
 		let mut rng = rand::thread_rng();
 	
 		let color_options: Vec<AnsiColorCode> = vec![
@@ -170,14 +255,14 @@ impl PuzzleGenerator {
 
         // Randomly generate other attributes
         /*let vehicle_id = 0;*/
-        let sizes = match orientation {
+        /*let sizes = match orientation {
             Orientation::Horizontal => [(2, 1), (3, 1)],
             Orientation::Vertical => [(1, 2), (1, 3)],
         };
-        let size = sizes[rng.gen_range(0..sizes.len())];
+        let size = sizes[rng.gen_range(0..sizes.len())];*/
 
         // Create and return the vehicle using the RGBA color and the provided position
-        let vehicle = Vehicle::new(*vehicle_id, rgba_color, size, (position.0 as u8, position.1 as u8), orientation, ansi_color);
+        let vehicle = Vehicle::new(*vehicle_id, rgba_color, (size.0 as u8, size.1 as u8), (position.0 as u8, position.1 as u8), orientation, ansi_color);
 		println!("Generated vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, size, position, orientation);
 		
     	vehicle
@@ -285,7 +370,7 @@ impl PuzzleGenerator {
         x < GRID_WIDTH && y < GRID_HEIGHT
     }
 
-    pub fn verify_solvability(&self, game: &Game) {
+    /*pub fn verify_solvability(&self, game: &Game) {
         // Assuming the red car needs to reach the far right of the center row to exit
         if let Some(red_car) = game.vehicles.iter().find(|v| v.ansi_color == AnsiColorCode::Red && v.orientation == Orientation::Horizontal) {
             // The center row can be calculated as GRID_HEIGHT / 2
@@ -309,12 +394,12 @@ impl PuzzleGenerator {
         } else {
             println!("Red car not found or not correctly positioned for solvability check.");
         }
-    }
+    }*/
     
     // Note: You'll need to ensure that `is_position_empty` method is accessible and correctly implemented
     // to check if a specific grid position is empty.
 
-	fn puzzle_generated(&self, game: &Game) -> bool {
+	/*fn puzzle_generated(&self, game: &Game) -> bool {
 		const MIN_VEHICLES_REQUIRED: usize = 5;
 		let vehicles_placed = game.vehicles.len();
 	
@@ -325,29 +410,34 @@ impl PuzzleGenerator {
         } else {
             false
         }
-	}
+	}*/
 
     // === start of movement code ===
 
-    pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
-        let mut mv = Move::new(); // Declare 'mv' as mutable
+    /*pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
+        let mut best_move = None;
+        let mut max_complexity = 0;
     
-        // Collect moves
+        // Iterate over each vehicle to evaluate all possible moves
         for vehicle in &game.vehicles {
-            if let Some(new_mv) = self.calculate_possible_moves(vehicle, game)
-                .iter()
-                .max_by_key(|mv| self.calculate_move_complexity(mv, game)) {
-                println!("Collected move for vehicle ID {}: Move {:?} steps in direction {:?}", vehicle.id, new_mv.steps, new_mv.direction);
+            let possible_moves = self.calculate_possible_moves(vehicle, game);
     
-                mv = new_mv.clone(); // Assign the new value to 'mv'
-                break;
+            // Find the move for this vehicle with the highest complexity
+            for mv in possible_moves {
+                let complexity = self.calculate_move_complexity(&mv, game);
+                if complexity > max_complexity {
+                    best_move = Some(mv);
+                    max_complexity = complexity;
+                }
             }
         }
     
-        // Apply moves
-        self.apply_move(mv, game); // 'mv' now has the updated value
-        game.display_carpark(&game.vehicles.clone(), &game.grid.clone());
-    }    
+        // Apply the best move found for any vehicle
+        if let Some(mv) = best_move {
+            self.apply_move(mv, game);
+            game.display_carpark(&game.vehicles.clone(), &game.grid.clone());
+        }
+    }      
 
     fn calculate_possible_moves(&self, vehicle: &Vehicle, game: &Game) -> Vec<Move> {
         let mut moves = Vec::new();
@@ -487,7 +577,7 @@ impl PuzzleGenerator {
     }
 
     fn calculate_move_complexity(&self, r#move: &Move, game: &Game) -> usize {
-        // Logic to calculate the complexity increase for a given move
+        // Logic to calculate_for_vehicle_placement the complexity increase for a given move
         // Consider factors like blocking the path of the red car,
         // creating bottlenecks, etc.
         // Example implementation; adjust based on your game's complexity criteria.
@@ -521,13 +611,13 @@ impl PuzzleGenerator {
                 println!("Invalid move attempted for vehicle ID {}", vehicle.id);
             }
         }
-    }
+    }*/
 
     // === end of movement code ===
 }
 
 struct ComplexityMeasure {
-	// Fields and methods to calculate the complexity of the puzzle
+	// Fields and methods to calculate_for_vehicle_placement the complexity of the puzzle
 }
 
 impl ComplexityMeasure {
@@ -536,54 +626,90 @@ impl ComplexityMeasure {
 		ComplexityMeasure {}
 	}
 
-    // Updated calculate method
-    pub fn calculate(&self, game: &Game, position: (usize, usize), size: (u8, u8), orientation: Orientation) -> usize {
+    pub fn calculate_for_vehicle_placement(&self, game: &Game, position: (usize, usize), size: (u8, u8), orientation: Orientation) -> usize {
         let mut complexity = 0;
+    
+        // Proximity to critical points (e.g., exit, main vehicle)
+        complexity += self.calculate_proximity_complexity(position, game);
+    
+        // Blocking potential
+        complexity += self.calculate_blocking_potential(position, size, orientation, game);
+    
+        // Vehicle size and orientation
+        complexity += self.calculate_size_orientation_complexity(size, orientation);
+    
+        // Maneuverability and future movement implications
+        complexity += self.calculate_maneuverability_complexity(position, size, orientation, game);
+    
+        complexity
+    }
 
-        // Debug message for initial complexity
-        println!("Initial complexity: {}", complexity);
-
-        // Increase complexity for positions closer to the center of the grid
-        let center_x = GRID_WIDTH / 2;
-        let center_y = GRID_HEIGHT / 2;
-        complexity += (center_x as isize - position.0 as isize).abs() as usize;
-        complexity += (center_y as isize - position.1 as isize).abs() as usize;
-
-        // Debug message after calculating distance to center
-        println!("Complexity after center distance calculation: {}", complexity);
-
-        // Increase complexity based on the orientation and size
-        match orientation {
-            Orientation::Horizontal => {
-                for xi in position.0..position.0 + size.0 as usize {
-                    if game.is_position_empty(xi, position.1) {
-                        complexity += 1; // Increase complexity for each empty space
-                        // Debug message for each position check
-                        println!("Complexity increased for Horizontal at position ({}, {}), current complexity: {}", xi, position.1, complexity);
-                    }
-                }
-            },
-            Orientation::Vertical => {
-                for yi in position.1..position.1 + size.1 as usize {
-                    if game.is_position_empty(position.0, yi) {
-                        complexity += 1; // Increase complexity for each empty space
-                        // Debug message for each position check
-                        println!("Complexity increased for Vertical at position ({}, {}), current complexity: {}", position.0, yi, complexity);
-                    }
+    fn calculate_proximity_complexity(&self, position: (usize, usize), game: &Game) -> usize {
+        let mut complexity = 0;
+        let exit_position = (GRID_WIDTH - 1, GRID_HEIGHT / 2); // Assuming exit is at the far right of the middle row
+    
+        // Calculate distance to exit
+        let distance_to_exit = ((exit_position.0 as isize - position.0 as isize).abs() 
+                                + (exit_position.1 as isize - position.1 as isize).abs()) as usize;
+        complexity += distance_to_exit;
+    
+        // Additional complexity if near the main vehicle (e.g., the red car)
+        if let Some(main_vehicle) = game.vehicles.iter().find(|&v| v.id == 0) { // Assuming main vehicle has id 0
+            let distance_to_main_vehicle = ((main_vehicle.position.0 as isize - position.0 as isize).abs() 
+                                            + (main_vehicle.position.1 as isize - position.1 as isize).abs()) as usize;
+            if distance_to_main_vehicle < 3 { // Arbitrary threshold for proximity
+                complexity += 5; // Arbitrary complexity increase
+            }
+        }
+    
+        complexity
+    }   
+    
+    fn calculate_blocking_potential(&self, position: (usize, usize), size: (u8, u8), orientation: Orientation, game: &Game) -> usize {
+        let mut complexity = 0;
+    
+        if orientation == Orientation::Vertical {
+            if let Some(main_vehicle) = game.vehicles.iter().find(|&v| v.id == 0) { // Assuming main vehicle has id 0
+                // Calculate the rightmost column of the main vehicle
+                let red_car_end_x = main_vehicle.position.0 as usize + main_vehicle.size.0 as usize;
+    
+                // Check if the vertical vehicle's column is to the right of the main vehicle's rightmost column
+                let is_to_the_right = position.0 >= red_car_end_x;
+    
+                // Check if the vertical vehicle is in the same row as the main vehicle
+                let is_in_row = (position.1..(position.1 + size.1 as usize - 1)).any(|y| y == main_vehicle.position.1 as usize);
+    
+                if is_in_row && is_to_the_right {
+                    // Increase complexity if the vertical vehicle is blocking the path to the exit
+                    complexity += 10; // Adjust complexity value as needed
                 }
             }
         }
+    
+        complexity
+    }
 
-        // Final debug message for complexity
-        println!("Final calculated complexity: {}", complexity);
+    fn calculate_size_orientation_complexity(&self, size: (u8, u8), orientation: Orientation) -> usize {
+        let base_complexity = 1; // Base complexity for any vehicle
+        let size_complexity = size.0 as usize * size.1 as usize; // Larger vehicles are more complex
+        let orientation_complexity = if orientation == Orientation::Horizontal { 2 } else { 1 }; // Example: horizontal vehicles are more complex
+    
+        base_complexity + size_complexity + orientation_complexity
+    }
 
+    fn calculate_maneuverability_complexity(&self, position: (usize, usize), size: (u8, u8), orientation: Orientation, game: &Game) -> usize {
+        let mut complexity = 0;
+    
+        // Calculate the number of moves required to move this vehicle out of the way of the main vehicle
+        // This requires a more detailed understanding of your game's mechanics and might involve pathfinding algorithms
+    
         complexity
     }
 }
 
 // === start of movement code ===
 
-#[derive(Clone, Copy, Debug)]
+/*#[derive(Clone, Copy, Debug)]
 struct Move {
     vehicle_id: usize, // ID of the vehicle to move
     direction: MoveDirection, // Direction to move the vehicle
@@ -604,6 +730,6 @@ impl Move {
 enum MoveDirection {
     Forward, // Towards the end of the grid
     Backward, // Towards the start of the grid
-}
+}*/
 
 // === end of movement code ===

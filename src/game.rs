@@ -111,7 +111,7 @@ impl Game {
         }
     }
 
-    pub fn update_grid_for_vehicle(&mut self, vehicle_id: usize) {
+    /*pub fn update_grid_for_vehicle(&mut self, vehicle_id: usize) {
         // First, clear the old positions of the vehicle on the grid
         for row in self.grid.iter_mut() {
             for cell in row.iter_mut() {
@@ -139,7 +139,7 @@ impl Game {
                 },
             }
         }        
-    }
+    }*/
 
     pub fn is_position_empty(&self, x: usize, y: usize) -> bool {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
@@ -282,15 +282,15 @@ impl Game {
 
             // Update new positions in the grid
             let (x, y) = (new_x as usize, new_y as usize);
-            self.grid[y][x] = Some(vehicle_index); // You need to get the updated vehicle data
+            /*self.grid[y][x] = Some(vehicle_index);*/ // You need to get the updated vehicle data
 
             if vehicle.orientation == Orientation::Horizontal {
                 for i in 1..vehicle.size.0 {
-                    self.grid[y as usize][(((x + i as usize) as usize) as usize) as usize] = Some(vehicle_index);
+                    self.grid[y as usize][x + i as usize] = Some(vehicle_index);
                 }
             } else {
                 for i in 1..vehicle.size.1 {
-                    self.grid[(((y + i as usize) as usize) as usize) as usize][x as usize] = Some(vehicle_index);
+                    self.grid[y + i as usize][x as usize] = Some(vehicle_index);
                 }
             }
 
