@@ -149,9 +149,9 @@ impl Game {
         }
     }
 
-    pub fn is_occupied_by_vehicle(&self, x: usize, y: usize, vehicle_id: usize) -> bool {
+    pub fn is_occupied_by_vehicle(&self, x: usize, y: usize, vehicle_index: usize) -> bool {
         match self.grid[y][x] {
-            Some(id) => id == vehicle_id,
+            Some(id) => id == vehicle_index,
             None => false,
         }
     }
