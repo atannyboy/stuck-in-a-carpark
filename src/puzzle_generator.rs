@@ -8,24 +8,6 @@ pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
 const DESIRED_COMPLEXITY_THRESHOLD: usize = 100;
 
-/*pub struct GameManager {
-    pub game: Game,
-    // other fields as needed
-}*/
-
-/*impl GameManager {
-    pub fn new(game: Game) -> Self {
-        GameManager { game }
-    }
-
-    /*pub fn update_vehicles(&mut self, vehicles: Vec<Vehicle>) {
-        self.game.set_vehicles(vehicles);
-        // other state updates as needed
-    }*/
-
-    // other methods to manage game state
-}*/
-
 pub struct PuzzleGenerator {
     complexity_measure: ComplexityMeasure,
     desired_complexity_threshold: usize,
@@ -53,17 +35,8 @@ impl PuzzleGenerator {
         let mut vehicle_id: usize = 0;
         self.place_red_car(game, &mut vehicle_id);
     
-        loop { /*while !self.puzzle_generated(game) {*/
+        loop {
             self.add_vehicle_strategically(game, &mut vehicle_id);
-            
-            // Calculate combined complexity after each vehicle placement
-            //let current_complexity = self.calculate_current_puzzle_complexity(game);
-    
-            // Move vehicles to increase puzzle complexity
-            /*while self.should_increase_complexity(game, current_complexity) {
-                self.move_vehicles_strategically(game);
-            }*/
-            
             // Check if the puzzle meets your complexity criteria
             if self.is_puzzle_complex_enough(game) {
                 break;
@@ -88,9 +61,7 @@ impl PuzzleGenerator {
                 total_complexity += complexity;
             }
         }
-    
         /*println!("Total Complexity: {}", total_complexity);*/
-    
         total_complexity
     }
     
@@ -166,99 +137,88 @@ impl PuzzleGenerator {
         let mut best_complexity: usize = 0;
         let mut best_size: (usize, usize) = (3, 1);
         
-        /*loop {*/
-            // Pick the best positioned vehicle out of all possible positions
-            for (position, size, orientation) in &new_possible_positions {
-                let mut position_valid = true;
+        // Pick the best positioned vehicle out of all possible positions
+        for (position, size, orientation) in &new_possible_positions {
+            let mut position_valid = true;
 
-                match orientation {
-                    Orientation::Horizontal => {
-                        for x in position.0..(position.0 + size.0) {
-                            if !game.is_position_empty(x, position.1) {
-                                /*println!("Debug: Position ({}, {}) is not empty for Horizontal Orientation", x, position.1);*/
-                                position_valid = false;
-                                break;
-                            } else {
-                                /*println!("Debug: Position ({}, {}) is empty for Horizontal Orientation", x, position.1);*/
-                            }
+            match orientation {
+                Orientation::Horizontal => {
+                    for x in position.0..(position.0 + size.0) {
+                        if !game.is_position_empty(x, position.1) {
+                            /*println!("Debug: Position ({}, {}) is not empty for Horizontal Orientation", x, position.1);*/
+                            position_valid = false;
+                            break;
+                        } else {
+                            /*println!("Debug: Position ({}, {}) is empty for Horizontal Orientation", x, position.1);*/
                         }
-                    },
-                    Orientation::Vertical => {
-                        for y in position.1..(position.1 + size.1) {
-                            if !game.is_position_empty(position.0, y) {
-                                /*println!("Debug: Position ({}, {}) is not empty for Vertical Orientation", position.0, y);*/
-                                position_valid = false;
-                                break;
-                            } else {
-                                /*println!("Debug: Position ({}, {}) is empty for Vertical Orientation", position.0, y);*/
-                            }
+                    }
+                },
+                Orientation::Vertical => {
+                    for y in position.1..(position.1 + size.1) {
+                        if !game.is_position_empty(position.0, y) {
+                            /*println!("Debug: Position ({}, {}) is not empty for Vertical Orientation", position.0, y);*/
+                            position_valid = false;
+                            break;
+                        } else {
+                            /*println!("Debug: Position ({}, {}) is empty for Vertical Orientation", position.0, y);*/
                         }
                     }
                 }
-
-                if position_valid {
-                    /*println!("Debug: Valid position found at ({}, {}) with Orientation {:?}", position.0, position.1, orientation);*/
-
-                    let complexity = self.complexity_measure.calculate_for_vehicle_placement(game, *position, (size.0 as u8, size.1 as u8), *orientation);
-
-                    // Debug message for comparing vehicle complexities
-                    /*println!("Comparing Vehicle ID: {} - Position: {:?}, Size: {:?}, Orientation: {:?}, Complexity: {}", vehicle_id, position, size, orientation, complexity);*/
-
-                    if complexity > best_complexity {
-                        best_complexity = complexity;
-                        best_position = *position;
-                        best_size = *size;
-                        best_orientation = *orientation;
-
-                        // Debug message for the best choice at this point
-                        /*println!("New Best Vehicle ID: {} - Position: {:?}, Size: {:?}, Orientation: {:?}, Complexity: {}", vehicle_id, best_position, best_size, best_orientation, best_complexity);*/
-                    }
-                } else {
-                    /*println!("Debug: Invalid position at ({}, {}) with Orientation {:?}", position.0, position.1, orientation);*/
-                }
             }
 
-            // Add the best positioned vehicle to the carpark grid
-            for (position, size, orientation) in &new_possible_positions {
-                if (*position == best_position) && (*size == best_size) && (*orientation == best_orientation)  {
-                    let vehicle = self.generate_vehicle(*position, *size, *orientation, vehicle_id);
-                    /*if self.vehicle_struct.add_vehicle(vehicle) {*/
-                        println!("Suitable placement found for vehicle ID: {}, position: ({}, {})", vehicle_id, position.0, position.1);
+            if position_valid {
+                /*println!("Debug: Valid position found at ({}, {}) with Orientation {:?}", position.0, position.1, orientation);*/
 
-                        // Debug message for the vehicle being added
-                        println!("Adding Vehicle - ID: {}, Position: {:?}, Size: {:?}, Orientation: {:?}", vehicle_id, position, size, orientation);
+                let complexity = self.complexity_measure.calculate_for_vehicle_placement(game, *position, (size.0 as u8, size.1 as u8), *orientation);
 
-                        // Update the game's grid to reflect the new vehicle
-                        game.update_grid_with_new_vehicle(&vehicle, *vehicle_id);
-                        game.vehicles.push(vehicle);
+                // Debug message for comparing vehicle complexities
+                /*println!("Comparing Vehicle ID: {} - Position: {:?}, Size: {:?}, Orientation: {:?}, Complexity: {}", vehicle_id, position, size, orientation, complexity);*/
 
-                        // Calculate the complexity for this vehicle placement
-                        let placement_complexity = self.complexity_measure.calculate_for_vehicle_placement(
-                            game,
-                            *position,
-                            vehicle.size,
-                            best_orientation
-                        );
-                        // Add this complexity to the current complexity of the puzzle
-                        self.current_complexity += placement_complexity;
+                if complexity > best_complexity {
+                    best_complexity = complexity;
+                    best_position = *position;
+                    best_size = *size;
+                    best_orientation = *orientation;
 
-                        // Debug message for the total complexity after adding this vehicle
-                        println!("Total Complexity after adding vehicle ID {}: {}", vehicle_id, self.current_complexity);
-
-                        *vehicle_id += 1;
-
-                        /*break;*/
-                    /*} else {
-                        println!("Failed to add vehicle ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle.id, vehicle.size, position, best_orientation);
-                        // Remove the failed position from possible_positions and retry
-                        possible_positions.retain(|&(p, o)| p != position || o != best_orientation);
-                    }*/
-                } else {
-                    println!("No suitable placement found for vehicle ID: {}, position: ({}, {}), size: ({}, {}), orientation: {:?}", vehicle_id, position.0, position.1, size.0, size.1, orientation);
-                    /*break;*/
+                    // Debug message for the best choice at this point
+                    /*println!("New Best Vehicle ID: {} - Position: {:?}, Size: {:?}, Orientation: {:?}, Complexity: {}", vehicle_id, best_position, best_size, best_orientation, best_complexity);*/
                 }
+            } else {
+                /*println!("Debug: Invalid position at ({}, {}) with Orientation {:?}", position.0, position.1, orientation);*/
             }
-        /*}*/
+        }
+
+        // Add the best positioned vehicle to the carpark grid
+        for (position, size, orientation) in &new_possible_positions {
+            if (*position == best_position) && (*size == best_size) && (*orientation == best_orientation)  {
+                let vehicle = self.generate_vehicle(*position, *size, *orientation, vehicle_id);
+                println!("Suitable placement found for vehicle ID: {}, position: ({}, {})", vehicle_id, position.0, position.1);
+
+                // Debug message for the vehicle being added
+                println!("Adding Vehicle - ID: {}, Position: {:?}, Size: {:?}, Orientation: {:?}", vehicle_id, position, size, orientation);
+
+                // Update the game's grid to reflect the new vehicle
+                game.update_grid_with_new_vehicle(&vehicle, *vehicle_id);
+                game.vehicles.push(vehicle);
+
+                // Calculate the complexity for this vehicle placement
+                let placement_complexity = self.complexity_measure.calculate_for_vehicle_placement(
+                    game,
+                    *position,
+                    vehicle.size,
+                    best_orientation
+                );
+                // Add this complexity to the current complexity of the puzzle
+                self.current_complexity += placement_complexity;
+
+                // Debug message for the total complexity after adding this vehicle
+                println!("Total Complexity after adding vehicle ID {}: {}", vehicle_id, self.current_complexity);
+
+                *vehicle_id += 1;
+            } else {
+                println!("No suitable placement found for vehicle ID: {}, position: ({}, {}), size: ({}, {}), orientation: {:?}", vehicle_id, position.0, position.1, size.0, size.1, orientation);
+            }
+        }
         
         game.vehicles.clone() // Return the updated list of vehicles
     }
@@ -267,7 +227,6 @@ impl PuzzleGenerator {
 		let mut rng = rand::thread_rng();
 	
 		let color_options: Vec<AnsiColorCode> = vec![
-			/*AnsiColorCode::Red,*/
 			AnsiColorCode::Green,
             AnsiColorCode::Blue,
             AnsiColorCode::Cyan,
@@ -298,14 +257,6 @@ impl PuzzleGenerator {
 
         // Add the used color name to the HashSet of used colors
         self.used_colors.insert(ansi_color.to_string());
-
-        // Randomly generate other attributes
-        /*let vehicle_id = 0;*/
-        /*let sizes = match orientation {
-            Orientation::Horizontal => [(2, 1), (3, 1)],
-            Orientation::Vertical => [(1, 2), (1, 3)],
-        };
-        let size = sizes[rng.gen_range(0..sizes.len())];*/
 
         // Create and return the vehicle using the RGBA color and the provided position
         let vehicle = Vehicle::new(*vehicle_id, rgba_color, (size.0 as u8, size.1 as u8), (position.0 as u8, position.1 as u8), orientation, ansi_color);
@@ -392,12 +343,11 @@ impl PuzzleGenerator {
 
                 // Ensure no overlap with existing vehicles
                 for xi in x..std::cmp::min(x + length, GRID_WIDTH) {
-                    if !game.is_position_empty(xi, y) /*|| game.vehicle_at_position(xi as f64, y as f64).is_some()*/ {
+                    if !game.is_position_empty(xi, y) {
                         /*println!("Debug: Position ({}, {}) is not empty or occupied for Horizontal orientation", xi, y);*/
                         return false;
                     }
                 }
-
                 /*println!("Debug: Position ({}, {}) is suitable for Horizontal orientation", x, y);*/
                 true
             },
@@ -410,12 +360,11 @@ impl PuzzleGenerator {
 
                 // Ensure no overlap with existing vehicles
                 for yi in y..std::cmp::min(y + length, GRID_HEIGHT) {
-                    if !game.is_position_empty(x, yi) /*|| game.vehicle_at_position(x as f64, yi as f64).is_some()*/ {
+                    if !game.is_position_empty(x, yi) {
                         /*println!("Debug: Position ({}, {}) is not empty or occupied for Vertical orientation", x, yi);*/
                         return false;
                     }
                 }
-
                 /*println!("Debug: Position ({}, {}) is suitable for Vertical orientation", x, y);*/
                 true
             }
@@ -427,248 +376,7 @@ impl PuzzleGenerator {
         x < GRID_WIDTH && y < GRID_HEIGHT
     }
 
-    /*pub fn verify_solvability(&self, game: &Game) {
-        // Assuming the red car needs to reach the far right of the center row to exit
-        if let Some(red_car) = game.vehicles.iter().find(|v| v.ansi_color == AnsiColorCode::Red && v.orientation == Orientation::Horizontal) {
-            // The center row can be calculated as GRID_HEIGHT / 2
-            let center_row = GRID_HEIGHT / 2;
-            
-            // Check if the red car is already in the center row
-            if red_car.position.1 as usize == center_row {
-                // Check if the path from the red car's rightmost position to the right edge of the grid is clear
-                let path_clear = ((red_car.position.0 + red_car.size.0 as u8) as usize..GRID_WIDTH).all(|x| {
-                    game.is_position_empty(x, center_row)
-                });
-
-                if path_clear {
-                    println!("Puzzle is solvable: Red car has a clear path to the exit.");
-                } else {
-                    println!("Puzzle may not be solvable: Red car's path to the exit is blocked.");
-                }
-            } else {
-                println!("Red car is not in the center row, puzzle may not be solvable.");
-            }
-        } else {
-            println!("Red car not found or not correctly positioned for solvability check.");
-        }
-    }*/
-    
-    // Note: You'll need to ensure that `is_position_empty` method is accessible and correctly implemented
-    // to check if a specific grid position is empty.
-
-	/*fn puzzle_generated(&self, game: &Game) -> bool {
-		const MIN_VEHICLES_REQUIRED: usize = 5;
-		let vehicles_placed = game.vehicles.len();
-	
-        if vehicles_placed >= MIN_VEHICLES_REQUIRED {
-            println!("Puzzle generated with {} vehicles. Checking solvability.", vehicles_placed);
-            self.verify_solvability(game);  // Call to verify solvability here
-            true
-        } else {
-            false
-        }
-	}*/
-
     // === start of movement code ===
-
-    /*pub fn move_vehicles_strategically(&mut self, game: &mut Game) {
-        let mut best_move = None;
-        let mut max_complexity = 0;
-    
-        // Iterate over each vehicle to evaluate all possible moves
-        for vehicle in &game.vehicles {
-            let possible_moves = self.calculate_possible_moves(vehicle, game);
-    
-            // Find the move for this vehicle with the highest complexity
-            for mv in possible_moves {
-                let complexity = self.calculate_move_complexity(&mv, game);
-                if complexity > max_complexity {
-                    best_move = Some(mv);
-                    max_complexity = complexity;
-                }
-            }
-        }
-    
-        // Apply the best move found for any vehicle
-        if let Some(mv) = best_move {
-            self.apply_move(mv, game);
-            game.display_carpark(&game.vehicles.clone(), &game.grid.clone());
-        }
-    }      
-
-    fn calculate_possible_moves(&self, vehicle: &Vehicle, game: &Game) -> Vec<Move> {
-        let mut moves = Vec::new();
-        println!("Vehicle ID {}: Position: {:?} Size: {:?} Possible Moves: {:?}", vehicle.id, (vehicle.position.0 as usize, vehicle.position.1 as usize), (vehicle.size.0 as usize, vehicle.size.1 as usize), moves);
-
-        // Check moves in the forward direction
-        let forward_moves = self.check_direction(vehicle, game, MoveDirection::Forward);
-        moves.extend(forward_moves.clone());
-
-        // Check moves in the backward direction
-        let backward_moves = self.check_direction(vehicle, game, MoveDirection::Backward);
-        moves.extend(backward_moves.clone()); // Clone backward_moves here
-
-        println!("Forward Moves: {:?}", forward_moves);
-        println!("Backward Moves: {:?}", backward_moves);
-
-        moves
-    }
-
-    fn check_direction(&self, vehicle: &Vehicle, game: &Game, direction: MoveDirection) -> Vec<Move> {
-        let mut moves = Vec::new();
-        
-        let (dx, dy) = match vehicle.orientation {
-            Orientation::Horizontal => match direction {
-                MoveDirection::Forward => (1, 0),
-                MoveDirection::Backward => (-1, 0),
-            },
-            Orientation::Vertical => match direction {
-                MoveDirection::Forward => (0, 1),
-                MoveDirection::Backward => (0, -1),
-            },
-        };
-    
-        // Debug: Print the direction being checked
-        println!("Checking direction {:?} for vehicle ID {}", direction, vehicle.id);
-    
-        let mut steps = 1;
-        while let Ok(new_position) = self.calculate_new_position((vehicle.position.0 as usize, vehicle.position.1 as usize), dx * steps, dy * steps) {
-            // Debug: Print the new position being checked
-            println!("Checking new position {:?} for vehicle ID {}", new_position, vehicle.id);
-    
-            if self.is_valid_position((new_position.0 as usize, new_position.1 as usize), (vehicle.size.0 as usize, vehicle.size.1 as usize), vehicle.orientation, game, vehicle.id) {
-                // Debug: Print the successful move
-                println!("Valid move found for vehicle ID {}: Move {} steps in direction {:?}", vehicle.id, steps, direction);
-    
-                moves.push(Move {
-                    vehicle_id: vehicle.id,
-                    direction,
-                    steps: steps as isize,
-                });
-            } else {
-                // Debug: Print the reason for breaking the loop
-                println!("Invalid position reached for vehicle ID {}: {:?}", vehicle.id, new_position);
-                break;
-            }
-            steps += 1;
-        }
-    
-        // Debug: Print the total number of moves found
-        println!("Total moves found for vehicle ID {}: {}", vehicle.id, moves.len());
-    
-        moves
-    }    
-
-    fn calculate_new_position(&self, current_position: (usize, usize), dx: isize, dy: isize) -> Result<(usize, usize), &'static str> {
-        let new_x = current_position.0 as isize + dx;
-        let new_y = current_position.1 as isize + dy;
-    
-        if new_x < 0 || new_y < 0 || new_x >= GRID_WIDTH as isize || new_y >= GRID_HEIGHT as isize {
-            Err("New position is outside the grid boundaries")
-        } else {
-            Ok((new_x as usize, new_y as usize))
-        }
-    }   
-
-    fn is_valid_position(&self, new_position: (usize, usize), size: (usize, usize), orientation: Orientation, game: &Game, vehicle_id: usize) -> bool {
-        // Debug: Print the position being checked for validity
-        println!("Checking validity of new position: {:?}", new_position);
-    
-        let mut positions_to_check = Vec::new();
-    
-        match orientation {
-            Orientation::Horizontal => {
-                for x in new_position.0..new_position.0 + size.0 {
-                    positions_to_check.push((x, new_position.1));
-                }
-            },
-            Orientation::Vertical => {
-                for y in new_position.1..new_position.1 + size.1 {
-                    positions_to_check.push((new_position.0, y));
-                }
-            }
-        }
-    
-        let is_valid = positions_to_check.iter().all(|&pos| {
-            (pos.0 < GRID_WIDTH && pos.1 < GRID_HEIGHT) &&
-            (game.is_position_empty(pos.0, pos.1) || game.is_occupied_by_vehicle(pos.0, pos.1, vehicle_id))
-        });
-    
-        // Debug: Print the result of the validity check
-        println!("New position {:?} is valid: {}", new_position, is_valid);
-    
-        is_valid
-    }    
-    
-    fn get_occupied_positions(&self, position: (usize, usize), size: (usize, usize), orientation: Orientation) -> Vec<(usize, usize)> {
-        println!("Getting occupied positions for Position: {:?}, Size: {:?}, Orientation: {:?}", position, size, orientation);
-        
-        let mut occupied_positions = Vec::new();
-        match orientation {
-            Orientation::Horizontal => {
-                for i in 0..size.0 {
-                    let new_x = position.0 + i;
-                    if new_x < GRID_WIDTH {
-                        occupied_positions.push((new_x, position.1));
-                    }
-                }
-            },
-            Orientation::Vertical => {
-                for i in 0..size.1 {
-                    let new_y = position.1 + i;
-                    if new_y < GRID_HEIGHT {
-                        occupied_positions.push((position.0, new_y));
-                    }
-                }
-            }
-        }
-    
-        println!("Occupied positions: {:?}", occupied_positions);
-        occupied_positions
-    }    
-
-    fn select_best_move(&self, possible_moves: &[Move], game: &Game) -> Option<Move> {
-        possible_moves.iter()
-            .max_by_key(|mv| self.calculate_move_complexity(mv, game))
-            .copied()
-    }
-
-    fn calculate_move_complexity(&self, r#move: &Move, game: &Game) -> usize {
-        // Logic to calculate_for_vehicle_placement the complexity increase for a given move
-        // Consider factors like blocking the path of the red car,
-        // creating bottlenecks, etc.
-        // Example implementation; adjust based on your game's complexity criteria.
-        match r#move.direction {
-            MoveDirection::Forward => 10, // Assign some complexity value
-            MoveDirection::Backward => 5, // Different complexity for backward move
-        }
-    }
-
-    fn apply_move(&self, r#move: Move, game: &mut Game) {
-        if let Some(vehicle) = game.vehicles.iter_mut().find(|v| v.id == r#move.vehicle_id) {
-            let (dx, dy) = match vehicle.orientation {
-                Orientation::Horizontal => match r#move.direction {
-                    MoveDirection::Forward => (r#move.steps, 0),
-                    MoveDirection::Backward => (-r#move.steps, 0),
-                },
-                Orientation::Vertical => match r#move.direction {
-                    MoveDirection::Forward => (0, r#move.steps),
-                    MoveDirection::Backward => (0, -r#move.steps),
-                },
-            };
-
-            println!("(dx, dy) = ({}, {})", dx, dy);
-    
-            if let Ok(new_position) = self.calculate_new_position((vehicle.position.0 as usize, vehicle.position.1 as usize), dx, dy) {
-                vehicle.set_position(new_position);
-                // Update the grid or any other necessary state here
-                game.update_grid_for_vehicle(r#move.vehicle_id);
-            } else {
-                // Handle the case where the new position is invalid
-                println!("Invalid move attempted for vehicle ID {}", vehicle.id);
-            }
-        }
-    }*/
 
     // === end of movement code ===
 }
@@ -759,34 +467,10 @@ impl ComplexityMeasure {
     
         // Calculate the number of moves required to move this vehicle out of the way of the main vehicle
         // This requires a more detailed understanding of your game's mechanics and might involve pathfinding algorithms
-    
         complexity
     }
 }
 
 // === start of movement code ===
-
-/*#[derive(Clone, Copy, Debug)]
-struct Move {
-    vehicle_id: usize, // ID of the vehicle to move
-    direction: MoveDirection, // Direction to move the vehicle
-    steps: isize, // Number of steps to move
-}
-
-impl Move {
-    pub fn new() -> Self {
-        let vehicle_id = 0;
-        let direction = MoveDirection::Forward;
-        let steps = 1;
-
-        Move { vehicle_id, direction, steps }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum MoveDirection {
-    Forward, // Towards the end of the grid
-    Backward, // Towards the start of the grid
-}*/
 
 // === end of movement code ===

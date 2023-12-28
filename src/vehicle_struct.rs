@@ -30,20 +30,6 @@ impl VehicleStruct {
         let last_id = 0;
         VehicleStruct { vehicles, last_id } // Correctly return a VehicleStruct instance
     }
-
-    /*pub fn add_vehicle(&mut self, mut new_vehicle: Vehicle) -> bool {
-        for existing_vehicle in &self.vehicles {
-            if PuzzleGenerator::check_for_overlap(existing_vehicle, &new_vehicle) {
-                return false; // Overlap detected, do not add the new vehicle
-            }
-        }
-        // Assign the next ID to the new vehicle
-        /*new_vehicle.id = self.last_id;
-        self.last_id += 1;*/ // Increment the last_id for the next vehicle
-
-        /*self.vehicles.push(new_vehicle);*/ // No overlap, add the new vehicle
-        true // Vehicle added successfully
-    }*/
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -144,14 +130,6 @@ impl Vehicle {
         }
         positions
     }
-
-    /*pub fn symbol(&self) -> char {
-        match self.color {
-            [1.0, 0.0, 0.0, 1.0] => 'R', // Red vehicle
-            [0.0, 0.0, 1.0, 1.0] => 'B', // Blue vehicle
-            _ => 'V', // Default symbol for other vehicles
-        }
-    }*/
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

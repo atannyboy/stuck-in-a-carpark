@@ -26,68 +26,6 @@ impl Game {
             selected_vehicle_index: None,
         }
     }
-
-    // Add this method to update vehicles
-    /*pub fn set_vehicles(&mut self, vehicles: Vec<Vehicle>) {
-        let vehicles_count = vehicles.len();
-        self.vehicles = vehicles;
-        println!("Setting vehicles. Vehicle count: {}", vehicles_count);
-        self.update_grid(); // Update grid every time vehicles are set
-    }*/
-
-    // Add or update this method to populate the grid based on vehicles
-    /*pub fn update_grid(&mut self) {
-        // Clear the grid first
-        self.grid = [[None; GRID_WIDTH]; GRID_WIDTH];
-    
-        for (index, vehicle) in self.vehicles.iter().enumerate() {
-            println!("Placing vehicle on grid ID: {}, Size: {:?}, Position: {:?}, Orientation: {:?}", vehicle_id, vehicle.size, vehicle.position, vehicle.orientation);
-            
-            let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
-            /*let (width, height) = match vehicle.orientation {
-                Orientation::Horizontal => (vehicle.size.0 as usize, 1),
-                Orientation::Vertical => (1, vehicle.size.1 as usize),
-            };*/
-    
-            // Check for overlap before placing the vehicle
-            if self.grid[y][x].is_some() {
-                // Handle the overlap scenario, e.g., log an error or adjust vehicle placement
-                continue; // Skipping the current vehicle placement
-            }
-    
-            // Placing the vehicle based on its orientation
-            match vehicle.orientation {
-                Orientation::Horizontal => {
-                    for i in 0..vehicle.size.0 as usize {
-                        if x + i < GRID_WIDTH {
-                            if self.grid[y][x + i].is_some() {
-                                println!("Overlap detected at position: ({}, {})", x + i, y);
-                                break;
-                            }
-                            self.grid[y][x + i] = Some(index);
-                        } else {
-                            println!("Horizontal vehicle exceeds grid boundary at position: ({}, {})", x + i, y);
-                            break;
-                        }
-                    }
-                },
-                Orientation::Vertical => {
-                    for i in 0..vehicle.size.1 as usize {
-                        if y + i < GRID_HEIGHT {
-                            if self.grid[y + i][x].is_some() {
-                                println!("Overlap detected at position: ({}, {})", x, y + i);
-                                break;
-                            }
-                            self.grid[y + i][x] = Some(index);
-                        } else {
-                            println!("Vertical vehicle exceeds grid boundary at position: ({}, {})", x, y + i);
-                            break;
-                        }
-                    }
-                },
-            }
-        }
-    } */ 
     
     // Method to update the grid with a new vehicle
     pub fn update_grid_with_new_vehicle(&mut self, vehicle: &Vehicle, vehicle_id: usize) {
@@ -110,36 +48,6 @@ impl Game {
             },
         }
     }
-
-    /*pub fn update_grid_for_vehicle(&mut self, vehicle_id: usize) {
-        // First, clear the old positions of the vehicle on the grid
-        for row in self.grid.iter_mut() {
-            for cell in row.iter_mut() {
-                if *cell == Some(vehicle_id) {
-                    *cell = None;
-                }
-            }
-        }
-
-        // Then, set the new positions of the vehicle
-        if let Some(vehicle) = self.vehicles.iter().find(|v| v.id == vehicle_id) {
-            let (x, y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
-            match vehicle.orientation {
-                Orientation::Horizontal => {
-                    let end_x = std::cmp::min(x + vehicle.size.0 as usize, GRID_WIDTH);
-                    for i in x..end_x {
-                        self.grid[y][i] = Some(vehicle_id);
-                    }
-                },
-                Orientation::Vertical => {
-                    let end_y = std::cmp::min(y + vehicle.size.1 as usize, GRID_HEIGHT);
-                    for i in y..end_y {
-                        self.grid[i][x] = Some(vehicle_id);
-                    }
-                },
-            }
-        }        
-    }*/
 
     pub fn is_position_empty(&self, x: usize, y: usize) -> bool {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
@@ -282,7 +190,6 @@ impl Game {
 
             // Update new positions in the grid
             let (x, y) = (new_x as usize, new_y as usize);
-            /*self.grid[y][x] = Some(vehicle_index);*/ // You need to get the updated vehicle data
 
             if vehicle.orientation == Orientation::Horizontal {
                 for i in 1..vehicle.size.0 {
@@ -326,7 +233,6 @@ impl Game {
                     // If there's a vehicle in this cell, draw it
                     if let Some(vehicle_index) = cell {
                         let vehicle = &self.vehicles[*vehicle_index];   // Dereference the index to get the vehicle
-                        //println!("Rendering vehicle at index {}: {:?}", vehicle_index, vehicle);
 
                         let vehicle_x = (vehicle.position.0 as f64) * CELL_SIZE;
                         let vehicle_y = (vehicle.position.1 as f64) * CELL_SIZE;
