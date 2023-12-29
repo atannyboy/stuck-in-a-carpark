@@ -193,7 +193,8 @@ impl PuzzleGenerator {
         }
 
         // Add the best positioned vehicle to the carpark grid
-        for (position, size, orientation) in &new_possible_positions {
+        for (index, (position, size, orientation)) in new_possible_positions.iter().enumerate() {
+
             if (*position == best_position) && (*size == best_size) && (*orientation == best_orientation)  {
                 let vehicle = self.generate_vehicle(*position, *size, *orientation, vehicle_id);
                 println!("Suitable placement found for vehicle ID: {}, position: ({}, {})", vehicle_id, position.0, position.1);
@@ -217,10 +218,13 @@ impl PuzzleGenerator {
 
                 // Debug message for the total complexity after adding this vehicle
                 println!("Total Complexity after adding vehicle ID {}: {}", vehicle_id, self.current_complexity);
-
-                *vehicle_id += 1;
+                
             } else {
                 println!("No suitable placement found for vehicle ID: {}, position: ({}, {}), size: ({}, {}), orientation: {:?}", vehicle_id, position.0, position.1, size.0, size.1, orientation);
+            }
+
+            if index >= new_possible_positions.len() - 1 {
+                *vehicle_id += 1;
             }
         }
         
@@ -417,18 +421,22 @@ impl PuzzleGenerator {
     fn generate_random_move(&self, game: &Game) -> Move {
         let mut rng = thread_rng();
         let vehicle_index = rng.gen_range(0..game.vehicles.len());
-        let move_distance = rng.gen_range(1..=MAX_MOVE_DISTANCE); // Define MAX_MOVE_DISTANCE as per your game rules
+        
+        // Example logic to determine the position (this is highly game-dependent)
+        let vehicle = &game.vehicles[vehicle_index];
+        let position_x = vehicle.position.0 as isize; // Current X position of the vehicle
+        let position_y = vehicle.position.1 as isize; // Current Y position of the vehicle
 
-        // Optionally, decide on the direction (forward/backward) if applicable
+        let move_distance = rng.gen_range(1..=MAX_MOVE_DISTANCE);
         let direction_factor: isize = if rng.gen_bool(0.5) { 1 } else { -1 };
         let adjusted_move_distance = move_distance * direction_factor;
 
-        // Create a new Move instance
         Move {
             vehicle_index,
-            move_type: MoveType::Placement,
-            distance: adjusted_move_distance as isize,
-            // Set other fields as needed
+            move_type: MoveType::Movement, // Assuming it's a movement
+            distance: adjusted_move_distance,
+            position_x: Some(position_x),
+            position_y: Some(position_y),
         }
     }
 
@@ -547,7 +555,9 @@ impl Move {
         Move {
             vehicle_index,
             move_type: MoveType::Placement,
-            distance,
+            distance, // the movement distance
+            position_x: None,
+            position_y: None,
             // Initialize additional fields as needed
         }
     }

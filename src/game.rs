@@ -290,13 +290,15 @@ impl Game {
     // === start of movement code ===
 
     // Method to record a vehicle placement during puzzle generation
-    pub fn record_placement(&mut self, vehicle_index: usize, position: isize) {
+    pub fn record_placement(&mut self, vehicle_index: usize, position: (usize, usize)) {
         let placement_move = Move {
             vehicle_index,
             move_type: MoveType::Placement,
-            distance: position, // Or use a more appropriate field for position
+            distance: 0, // Set to 0 or a default value for placements
+            position_x: Some(position.0 as isize),
+            position_y: Some(position.1 as isize),
         };
-        self.puzzle_generation_moves.push(placement_move);
+        self.record_puzzle_generation_move(placement_move);
     }
 
     // Method to record a vehicle movement during puzzle generation
@@ -305,17 +307,32 @@ impl Game {
             vehicle_index,
             move_type: MoveType::Movement,
             distance,
+            position_x: None,
+            position_y: None,
         };
-        self.puzzle_generation_moves.push(movement_move);
+        self.record_puzzle_generation_move(movement_move);
+    }
+
+    // Method to record a move during puzzle generation
+    pub fn record_puzzle_generation_move(&mut self, game_move: Move) {
+        self.puzzle_generation_moves.push(game_move);
     }
 
     // Method to apply a move to the game state
     pub fn apply_move(&mut self, game_move: Move) {
         // Apply the move to the game state
-        // ...
-
-        // Record the move in the move history
-        self.move_history.push(game_move);
+        match game_move.move_type {
+            MoveType::Placement => {
+                // Handle placement using position_x and position_y
+                // Record the move in the move history
+                self.move_history.push(game_move);
+            },
+            MoveType::Movement => {
+                // Handle movement using distance
+                // Record the move in the move history
+                self.move_history.push(game_move);
+            },
+        }
     }
 
     // Method to undo the last move

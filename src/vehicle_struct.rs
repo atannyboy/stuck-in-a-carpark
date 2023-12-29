@@ -155,8 +155,11 @@ pub enum Orientation {
 pub struct Move {
     pub vehicle_index: usize,
     pub move_type: MoveType,
-    pub distance: isize, // For Movement. For Placement, this might represent position.
-    // Add any additional fields needed for placement, like position or orientation
+    pub distance: isize, // Used only for Movement
+    pub position_x: Option<isize>, // New field for the X position in Placement
+    pub position_y: Option<isize>, // New field for the Y position in Placement
+    // You can keep the distance field for movement-specific data
+    // Add any additional fields needed for placement, like orientation
 }
 
 // === end of movement code ===
