@@ -6,11 +6,17 @@ use crate::CELL_SIZE;
 
 use crate::puzzle_generator::GRID_WIDTH;
 use crate::puzzle_generator::GRID_HEIGHT;
+use crate::vehicle_struct::Move;
 
 pub struct Game {
     pub vehicles: Vec<Vehicle>,
     pub grid: [[Option<usize>; 7]; 7],
     pub selected_vehicle_index: Option<usize>,
+
+    // === start of movement code ===
+    pub puzzle_generation_moves: Vec<Move>, // To store both placements and movements during puzzle generation
+    pub move_history: Vec<Move>, // Add this line to store the move history
+    // === end of movement code ===
 }
 
 // Use 'pub' to make the methods accessible from outside this module.
@@ -24,6 +30,10 @@ impl Game {
             vehicles: Vec::new(), 
             grid: [[None; GRID_WIDTH as usize]; GRID_WIDTH as usize], 
             selected_vehicle_index: None,
+            // === start of movement code ===
+            puzzle_generation_moves: Vec::new(),
+            move_history: Vec::new(),
+            // === end of movement code ===
         }
     }
     
@@ -276,4 +286,64 @@ impl Game {
     
         println!("{}", output);
     }
+
+    // === start of movement code ===
+
+    // Method to record a vehicle placement during puzzle generation
+    pub fn record_placement(&mut self, vehicle_index: usize, position: isize) {
+        let placement_move = Move {
+            vehicle_index,
+            move_type: MoveType::Placement,
+            distance: position, // Or use a more appropriate field for position
+        };
+        self.puzzle_generation_moves.push(placement_move);
+    }
+
+    // Method to record a vehicle movement during puzzle generation
+    pub fn record_movement(&mut self, vehicle_index: usize, distance: isize) {
+        let movement_move = Move {
+            vehicle_index,
+            move_type: MoveType::Movement,
+            distance,
+        };
+        self.puzzle_generation_moves.push(movement_move);
+    }
+
+    // Method to apply a move to the game state
+    pub fn apply_move(&mut self, game_move: Move) {
+        // Apply the move to the game state
+        // ...
+
+        // Record the move in the move history
+        self.move_history.push(game_move);
+    }
+
+    // Method to undo the last move
+    pub fn undo_last_move(&mut self) {
+        if let Some(last_move) = self.move_history.pop() {
+            // Code to reverse the last move
+            // This might involve moving the vehicle back by the inverse of the last move's distance
+        }
+    }
+
+    // Method to calculate the total complexity of a series of moves
+    pub fn calculate_total_complexity(&self) -> usize {
+        self.move_history.iter().map(|game_move| {
+            // Complexity calculation logic per move
+            // Example: game_move.distance as usize
+            game_move.distance as usize // Example
+        }).sum()
+    }
+
+    // === end of movement code ===
 }
+
+// === start of movement code ===
+
+#[derive(Clone, Debug)]
+pub enum MoveType {
+    Placement, // For initial placement of vehicles
+    Movement,  // For subsequent movements of vehicles
+}
+
+// === end of movement code ===

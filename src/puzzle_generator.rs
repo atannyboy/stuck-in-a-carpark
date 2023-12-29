@@ -1,12 +1,16 @@
 use crate::Game;
 use crate::vehicle_struct::{VehicleStruct, Vehicle, Orientation, AnsiColorCode};
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use rand::prelude::SliceRandom;
 use std::collections::HashSet;
+use crate::vehicle_struct::Move;
+use crate::game::MoveType;
 
 pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
-const DESIRED_COMPLEXITY_THRESHOLD: usize = 100;
+const DESIRED_COMPLEXITY_THRESHOLD: usize = 20;
+const NUMBER_OF_MOVES_TO_CONSIDER: usize = 20;
+const MAX_MOVE_DISTANCE: isize = 5;
 
 pub struct PuzzleGenerator {
     complexity_measure: ComplexityMeasure,
@@ -378,6 +382,61 @@ impl PuzzleGenerator {
 
     // === start of movement code ===
 
+    // Method to generate a puzzle with a specified complexity
+    pub fn generate_puzzle_with_complexity(&mut self, desired_complexity: usize) -> Game {
+        let mut game = Game::new(); // Create a new game
+
+        while game.calculate_total_complexity() < desired_complexity {
+            // Evaluate multiple moves and select the one with the highest complexity
+            let best_move = self.evaluate_best_move(&game);
+            game.apply_move(best_move); // Method to apply the selected move
+        }
+
+        game
+    }
+
+    // Method to evaluate multiple moves and select the best one
+    fn evaluate_best_move(&self, game: &Game) -> Move { // Assuming a Move struct
+        let mut best_move = None;
+        let mut highest_complexity = 0;
+
+        for _ in 0..NUMBER_OF_MOVES_TO_CONSIDER { // Define how many moves to evaluate
+            let move_candidate = self.generate_random_move(game);
+            let complexity = self.calculate_move_complexity(game, &move_candidate);
+
+            if complexity > highest_complexity {
+                highest_complexity = complexity;
+                best_move = Some(move_candidate);
+            }
+        }
+
+        best_move.expect("No valid moves found")
+    }
+
+    // Helper methods to generate a random move and calculate its complexity
+    fn generate_random_move(&self, game: &Game) -> Move {
+        let mut rng = thread_rng();
+        let vehicle_index = rng.gen_range(0..game.vehicles.len());
+        let move_distance = rng.gen_range(1..=MAX_MOVE_DISTANCE); // Define MAX_MOVE_DISTANCE as per your game rules
+
+        // Optionally, decide on the direction (forward/backward) if applicable
+        let direction_factor: isize = if rng.gen_bool(0.5) { 1 } else { -1 };
+        let adjusted_move_distance = move_distance * direction_factor;
+
+        // Create a new Move instance
+        Move {
+            vehicle_index,
+            move_type: MoveType::Placement,
+            distance: adjusted_move_distance as isize,
+            // Set other fields as needed
+        }
+    }
+
+    fn calculate_move_complexity(&self, game: &Game, move_candidate: &Move) -> usize {
+        // Calculate the complexity of the move
+        0
+    }
+
     // === end of movement code ===
 }
 
@@ -472,5 +531,28 @@ impl ComplexityMeasure {
 }
 
 // === start of movement code ===
+
+// Example of how to use enums for direction, if needed
+#[derive(Clone, Copy, Debug)]
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Move {
+    // Constructor for creating a new Move
+    pub fn new(vehicle_index: usize, distance: isize) -> Self {
+        Move {
+            vehicle_index,
+            move_type: MoveType::Placement,
+            distance,
+            // Initialize additional fields as needed
+        }
+    }
+
+    // Additional methods as needed for your game logic
+}
 
 // === end of movement code ===

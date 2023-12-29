@@ -1,4 +1,5 @@
 use crate::puzzle_generator::PuzzleGenerator;
+use crate::game::MoveType;
 
 use std::collections::HashSet;
 use rand::Rng;
@@ -130,6 +131,16 @@ impl Vehicle {
         }
         positions
     }
+
+    // === start of movement code ===
+
+    // Method to calculate the complexity of moving this vehicle
+    pub fn move_complexity(&self, move_distance: usize) -> usize {
+        // Example: Complexity is simply the distance moved
+        move_distance
+    }
+
+    // === end of movement code ===
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -137,3 +148,15 @@ pub enum Orientation {
     Horizontal,
     Vertical,
 }
+
+// === start of movement code ===
+
+#[derive(Clone, Debug)]
+pub struct Move {
+    pub vehicle_index: usize,
+    pub move_type: MoveType,
+    pub distance: isize, // For Movement. For Placement, this might represent position.
+    // Add any additional fields needed for placement, like position or orientation
+}
+
+// === end of movement code ===
