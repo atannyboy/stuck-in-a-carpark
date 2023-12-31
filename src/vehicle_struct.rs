@@ -4,6 +4,43 @@ use crate::game::MoveType;
 use std::collections::HashSet;
 use rand::Rng;
 
+// === start of movement code ===
+
+use std::hash::{Hash, Hasher};
+
+#[derive(Clone, Debug, Eq)]
+pub struct Move {
+    pub vehicle_index: usize,
+    pub move_type: MoveType,
+    pub distance: isize, // Used only for Movement
+    pub position_x: Option<isize>,
+    pub position_y: Option<isize>,
+    // You can keep the distance field for movement-specific data
+    // Add any additional fields needed for placement, like orientation
+}
+
+impl Hash for Move {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.vehicle_index.hash(state);
+        self.move_type.hash(state);
+        self.distance.hash(state);
+        self.position_x.hash(state);
+        self.position_y.hash(state);
+    }
+}
+
+impl PartialEq for Move {
+    fn eq(&self, other: &Self) -> bool {
+        self.vehicle_index == other.vehicle_index &&
+        self.move_type == other.move_type &&
+        self.distance == other.distance &&
+        self.position_x == other.position_x &&
+        self.position_y == other.position_y
+    }
+}
+
+// === end of movement code ===
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Debug)]
 pub enum AnsiColorCode {
     Red,    // Representing "\x1b[31m"
@@ -148,18 +185,3 @@ pub enum Orientation {
     Horizontal,
     Vertical,
 }
-
-// === start of movement code ===
-
-#[derive(Clone, Debug)]
-pub struct Move {
-    pub vehicle_index: usize,
-    pub move_type: MoveType,
-    pub distance: isize, // Used only for Movement
-    pub position_x: Option<isize>, // New field for the X position in Placement
-    pub position_y: Option<isize>, // New field for the Y position in Placement
-    // You can keep the distance field for movement-specific data
-    // Add any additional fields needed for placement, like orientation
-}
-
-// === end of movement code ===

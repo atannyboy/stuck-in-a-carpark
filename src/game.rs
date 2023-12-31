@@ -357,7 +357,7 @@ impl Game {
 
 // === start of movement code ===
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MoveType {
     Placement, // For initial placement of vehicles
     Movement,  // For subsequent movements of vehicles
