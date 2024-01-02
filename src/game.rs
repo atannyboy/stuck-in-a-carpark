@@ -320,20 +320,73 @@ impl Game {
 
     // Method to apply a move to the game state
     pub fn apply_move(&mut self, game_move: Move) {
-        // Apply the move to the game state
         match game_move.move_type {
             MoveType::Placement => {
-                // Handle placement using position_x and position_y
-                // Record the move in the move history
+                // For Placement, you might already be handling this elsewhere
                 self.move_history.push(game_move);
             },
             MoveType::Movement => {
-                // Handle movement using distance
-                // Record the move in the move history
-                self.move_history.push(game_move);
+                let (new_x, new_y); // Declare variables to store the new position
+                let move_clone = game_move.clone(); // Clone the move
+    
+                if let Some(vehicle) = self.vehicles.get_mut(game_move.vehicle_index) {
+                    // Calculate new position based on the move distance
+                    match vehicle.orientation {
+                        Orientation::Horizontal => {
+                            new_x = ((vehicle.position.0 as isize) + game_move.distance) as u8;
+                            new_y = vehicle.position.1;
+                        },
+                        Orientation::Vertical => {
+                            new_x = vehicle.position.0;
+                            new_y = ((vehicle.position.1 as isize) + game_move.distance) as u8;
+                        },
+                    }
+    
+                    // Update vehicle's position
+                    vehicle.position = (new_x, new_y);
+    
+                    // Add the cloned move to the move history
+                    self.move_history.push(move_clone);
+                } else {
+                    return; // If vehicle not found, exit the function
+                }
+    
+                // Update the grid to reflect the new position
+                // This is called outside the mutable borrow scope of `vehicle`
+                self.update_grid_after_move(game_move.vehicle_index, new_x, new_y);
             },
         }
-    }
+    }    
+    
+    fn update_grid_after_move(&mut self, vehicle_index: usize, new_x: u8, new_y: u8) {
+        // First, clear the old position of the vehicle on the grid
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
+                if self.grid[y][x] == Some(vehicle_index) {
+                    self.grid[y][x] = None;
+                }
+            }
+        }
+    
+        // Then, set the new position of the vehicle on the grid
+        let vehicle = &self.vehicles[vehicle_index];
+        match vehicle.orientation {
+            Orientation::Horizontal => {
+                for i in 0..vehicle.size.0 as usize {
+                    if new_x as usize + i < GRID_WIDTH {
+                        self.grid[new_y as usize][new_x as usize + i] = Some(vehicle_index);
+                    }
+                }
+            },
+            Orientation::Vertical => {
+                for i in 0..vehicle.size.1 as usize {
+                    if new_y as usize + i < GRID_HEIGHT {
+                        self.grid[new_y as usize + i][new_x as usize] = Some(vehicle_index);
+                    }
+                }
+            },
+        }
+    }    
 
     // Method to undo the last move
     pub fn undo_last_move(&mut self) {

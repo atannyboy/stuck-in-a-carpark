@@ -39,17 +39,24 @@ impl PuzzleGenerator {
         let mut vehicle_id: usize = 0;
         self.place_red_car(game, &mut vehicle_id);
     
-        loop {
-            self.add_vehicle_strategically(game, &mut vehicle_id);
-            // Check if the puzzle meets your complexity criteria
-            if self.is_puzzle_complex_enough(game) {
-                break;
+        while !self.is_puzzle_complex_enough(game) {
+            let mut rng = rand::thread_rng();
+            if rng.gen_bool(0.5) { // 50% chance to either place a new vehicle or move an existing one
+                println!("Attempting to place a new vehicle");
+                self.add_vehicle_strategically(game, &mut vehicle_id);
+            } else {
+                println!("Attempting to move an existing vehicle");
+                self.add_vehicle_movements(game);
+            }
+    
+            // Debug: Print current state of the game
+            println!("Current game state:");
+            for vehicle in &game.vehicles {
+                println!("Vehicle ID: {}, Position: {:?}", vehicle.id, vehicle.position);
             }
         }
-        // === start of movement code ===
-        // After placing vehicles, add movements to increase complexity
-        self.add_vehicle_movements(game);
-        // === end of movement code ===
+    
+        println!("Puzzle generation complete");
         game.vehicles.clone()
     }
     
@@ -389,106 +396,94 @@ impl PuzzleGenerator {
 
     // === start of movement code ===
 
-    fn add_vehicle_movements(&mut self, game: &mut Game) {
-        for _ in 0..NUMBER_OF_MOVES_TO_CONSIDER {
-            let move_action = self.generate_and_evaluate_moves(game);
-            let move_action_clone = move_action.clone();
-            game.apply_move(move_action_clone);
-            game.record_puzzle_generation_move(move_action);
+    pub fn add_vehicle_movements(&mut self, game: &mut Game) {
+        let mut all_valid_moves = Vec::new();
+
+        // Step 1: List all possible moves for each vehicle
+        for (index, vehicle) in game.vehicles.iter().enumerate() {
+            let vehicle_moves = self.generate_possible_moves_for_vehicle(vehicle, game);
+            all_valid_moves.extend(vehicle_moves);
+        }
+
+        // Step 3: Evaluate and select moves
+        if let Some(best_move) = self.evaluate_and_select_best_move(&all_valid_moves, game) {
+            // Step 4: Apply the selected move
+            println!("Applying move: Vehicle Index: {}, Move Type: {:?}, Distance: {}, Position X: {:?}, Position Y: {:?}", 
+            best_move.vehicle_index, best_move.move_type, best_move.distance, best_move.position_x, best_move.position_y);
+
+            let best_move_clone = best_move.clone(); // Clone the move
+            game.apply_move(best_move_clone);
+            game.record_puzzle_generation_move(best_move);
+
+            println!("After applying move:");
+            for vehicle in &game.vehicles {
+                println!("Vehicle ID: {}, Position: ({}, {})", vehicle.id, vehicle.position.0, vehicle.position.1);
+            }
         }
     }
 
-    // Method to generate a puzzle with a specified complexity
-    /*pub fn generate_puzzle_with_complexity(&mut self, desired_complexity: usize) -> Game {
-        let mut game = Game::new(); // Create a new game
+    // Generate all possible moves for a given vehicle
+    fn generate_possible_moves_for_vehicle(&self, vehicle: &Vehicle, game: &Game) -> Vec<Move> {
+        let mut possible_moves = Vec::new();
 
-        while game.calculate_total_complexity() < desired_complexity {
-            // Evaluate multiple moves and select the one with the highest complexity
-            let best_move = self.evaluate_best_move(&game);
-            game.apply_move(best_move); // Method to apply the selected move
+        let max_distance = match vehicle.orientation {
+            Orientation::Horizontal => GRID_WIDTH as isize - vehicle.size.0 as isize,
+            Orientation::Vertical => GRID_HEIGHT as isize - vehicle.size.1 as isize,
+        };
+
+        // Generate moves in the forward and backward directions
+        for distance in 1..=max_distance {
+            // Forward move
+            let forward_move = self.generate_move_if_valid(vehicle, distance, game);
+            if let Some(mv) = forward_move {
+                possible_moves.push(mv);
+            }
+
+            // Backward move (negative distance)
+            let backward_move = self.generate_move_if_valid(vehicle, -distance, game);
+            if let Some(mv) = backward_move {
+                possible_moves.push(mv);
+            }
         }
 
-        game
-    }*/
+        possible_moves
+    }
 
-    fn generate_and_evaluate_moves(&self, game: &mut Game) -> Move {
+    fn generate_move_if_valid(&self, vehicle: &Vehicle, distance: isize, game: &Game) -> Option<Move> {
+        let new_position = self.calculate_new_position(vehicle, distance);
+        if self.check_movement_validity(new_position, vehicle.size, vehicle.orientation, game) {
+            Some(Move {
+                vehicle_index: vehicle.id,
+                move_type: MoveType::Movement,
+                distance,
+                position_x: None,
+                position_y: None,
+            })
+        } else {
+            None
+        }
+    }
+
+    // Evaluate and select the best move from a list of valid moves
+    fn evaluate_and_select_best_move(&self, moves: &[Move], game: &Game) -> Option<Move> {
         let mut best_move = None;
         let mut highest_complexity = 0;
-        let mut considered_moves = HashSet::new();
-    
-        for _ in 0..NUMBER_OF_MOVES_TO_CONSIDER {
-            let move_candidate = self.generate_random_move(game);
-    
-            // Ensure move is valid and not a duplicate
-            if !considered_moves.contains(&move_candidate) && self.is_move_valid(&move_candidate, game) {
-                let complexity = self.calculate_move_complexity(game, &move_candidate);
-    
-                if complexity > highest_complexity {
-                    highest_complexity = complexity;
-                    best_move = Some(move_candidate.clone());
-                }
-    
-                considered_moves.insert(move_candidate);
-            }
-        }
-    
-        best_move.expect("No valid moves found")
-    }
 
-    fn generate_random_move(&self, game: &Game) -> Move {
-        let mut rng = thread_rng();
-        let vehicle_index = rng.gen_range(0..game.vehicles.len());
-        let vehicle = &game.vehicles[vehicle_index];
-    
-        // Adjust the maximum move distance for larger vehicles
-        let max_move_distance = if vehicle.size.0 == 3 || vehicle.size.1 == 3 {
-            MAX_MOVE_DISTANCE - 1
-        } else {
-            MAX_MOVE_DISTANCE
-        };
-    
-        let move_distance = rng.gen_range(1..=max_move_distance);
-        let direction_factor: isize = if rng.gen_bool(0.5) { 1 } else { -1 };
-        let adjusted_move_distance = move_distance * direction_factor;
-    
-        let (position_x, position_y) = match vehicle.orientation {
-            Orientation::Horizontal => {
-                // Horizontal move
-                let new_x = (vehicle.position.0 as isize + adjusted_move_distance).clamp(0, GRID_WIDTH as isize - 1);
-                (new_x, vehicle.position.1 as isize)
-            },
-            Orientation::Vertical => {
-                // Vertical move
-                let new_y = (vehicle.position.1 as isize + adjusted_move_distance).clamp(0, GRID_HEIGHT as isize - 1);
-                (vehicle.position.0 as isize, new_y)
-            }
-        };
-    
-        // Return the Move struct with calculated values
-        Move {
-            vehicle_index,
-            move_type: MoveType::Movement, // Assuming it's a movement move
-            distance: adjusted_move_distance,
-            position_x: Some(position_x as isize),
-            position_y: Some(position_y as isize),
-        }
-    }
+        for move_candidate in moves {
+            let complexity = self.calculate_move_complexity(game, move_candidate);
+            println!("Evaluating move: Vehicle Index: {}, Complexity: {}", move_candidate.vehicle_index, complexity);
 
-    fn is_move_valid(&self, game_move: &Move, game: &Game) -> bool {
-        match game_move.move_type {
-            MoveType::Placement => {
-                // For Placement moves
-                let position = (game_move.position_x.unwrap() as usize, game_move.position_y.unwrap() as usize);
-                let vehicle = &game.vehicles[game_move.vehicle_index];
-                self.check_placement_validity(position, vehicle.size, vehicle.orientation, game)
-            },
-            MoveType::Movement => {
-                // For Movement moves
-                let vehicle = &game.vehicles[game_move.vehicle_index];
-                let new_position = self.calculate_new_position(vehicle, game_move.distance);
-                self.check_movement_validity(new_position, vehicle.size, vehicle.orientation, game)
+            if complexity > highest_complexity {
+                highest_complexity = complexity;
+                best_move = Some(move_candidate.clone());
             }
         }
+
+        if let Some(ref best_move) = best_move {
+            println!("Selected best move: Vehicle Index: {}, Complexity: {}", best_move.vehicle_index, highest_complexity);
+        }
+
+        best_move
     }
 
     // --- start of complexity functions ---
@@ -576,35 +571,24 @@ impl PuzzleGenerator {
 
     // --- end of complexity functions ---
 
-    fn check_placement_validity(&self, position: (usize, usize), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
-        // Check if the position is within the grid bounds
-        if position.0 + size.0 as usize > GRID_WIDTH || position.1 + size.1 as usize > GRID_HEIGHT {
-            return false;
-        }
-    
-        // Check for overlap with existing vehicles
-        for vehicle in &game.vehicles {
-            if self.vehicles_overlap(position, size, orientation, vehicle) {
-                return false;
-            }
-        }
-    
-        true
-    }
-
     fn check_movement_validity(&self, new_position: (usize, usize), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
+        println!("Checking movement validity for new position: {:?}, size: {:?}, orientation: {:?}", new_position, size, orientation);
+    
         // Check if the new position is within the grid bounds
         if new_position.0 + size.0 as usize > GRID_WIDTH || new_position.1 + size.1 as usize > GRID_HEIGHT {
+            println!("Invalid move: new position is out of grid bounds.");
             return false;
         }
     
         // Check for collisions with other vehicles
         for vehicle in &game.vehicles {
             if self.vehicles_overlap(new_position, size, orientation, vehicle) {
+                println!("Invalid move: collision detected with vehicle ID: {}", vehicle.id);
                 return false;
             }
         }
     
+        println!("Move is valid.");
         true
     }
 
@@ -612,8 +596,20 @@ impl PuzzleGenerator {
         let occupied_by_first = self.get_occupied_positions(position, size, orientation);
         let occupied_by_second = self.get_occupied_positions((vehicle.position.0 as usize, vehicle.position.1 as usize), vehicle.size, vehicle.orientation);
     
+        println!("Checking overlap:");
+        println!("\tVehicle 1: Position: {:?}, Size: {:?}, Orientation: {:?}", position, size, orientation);
+        println!("\tVehicle 2 (ID: {}): Position: {:?}, Size: {:?}, Orientation: {:?}", vehicle.id, vehicle.position, vehicle.size, vehicle.orientation);
+    
         // Check for any overlap between the two sets of occupied cells
-        occupied_by_first.iter().any(|pos| occupied_by_second.contains(pos))
+        let overlap = occupied_by_first.iter().any(|pos| occupied_by_second.contains(pos));
+    
+        if overlap {
+            println!("\tOverlap detected between vehicles.");
+        } else {
+            println!("\tNo overlap detected.");
+        }
+    
+        overlap
     }
     
     fn get_occupied_positions(&self, position: (usize, usize), size: (u8, u8), orientation: Orientation) -> Vec<(usize, usize)> {
@@ -632,73 +628,6 @@ impl PuzzleGenerator {
         }
         positions
     }
-
-    /*fn calculate_move_complexity(&self, game: &Game, move_candidate: &Move) -> usize {
-        // Calculate the complexity of the move
-        0
-    }
-
-    fn check_placement_validity(&self, position: (usize, usize), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
-        // Ensure the position is within the grid bounds
-        if position.0 + size.0 as usize > GRID_WIDTH || position.1 + size.1 as usize > GRID_HEIGHT {
-            return false;
-        }
-    
-        // Check for collisions with existing vehicles
-        for vehicle in &game.vehicles {
-            if self.vehicles_overlap(position, size, orientation, vehicle) {
-                return false;
-            }
-        }
-    
-        true
-    }
-    
-    fn vehicles_overlap(&self, position: (usize, usize), size: (u8, u8), orientation: Orientation, vehicle: &Vehicle) -> bool {
-        let occupied_by_first: HashSet<_> = match orientation {
-            Orientation::Horizontal => (position.0..position.0 + size.0 as usize).map(|x| (x, position.1)).collect(),
-            Orientation::Vertical => (position.1..position.1 + size.1 as usize).map(|y| (position.0, y)).collect(),
-        };
-    
-        let occupied_by_second: HashSet<_> = match vehicle.orientation {
-            Orientation::Horizontal => (vehicle.position.0 as usize..vehicle.position.0 as usize + vehicle.size.0 as usize).map(|x| (x, vehicle.position.1 as usize)).collect(),
-            Orientation::Vertical => (vehicle.position.1 as usize..vehicle.position.1 as usize + vehicle.size.1 as usize).map(|y| (vehicle.position.0 as usize, y)).collect(),
-        };
-    
-        !occupied_by_first.is_disjoint(&occupied_by_second)
-    }
-
-    fn check_movement_validity(&self, new_position: (usize, usize), size: (u8, u8), orientation: Orientation, game: &Game) -> bool {
-        // Check if the new position is within the grid bounds
-        if new_position.0 + size.0 as usize > GRID_WIDTH || new_position.1 + size.1 as usize > GRID_HEIGHT {
-            return false;
-        }
-    
-        // Check for collisions with other vehicles
-        for vehicle in &game.vehicles {
-            if self.vehicles_overlap(new_position, size, orientation, vehicle) {
-                return false;
-            }
-        }
-    
-        true
-    }    
-
-    fn calculate_new_position(&self, vehicle: &Vehicle, distance: isize) -> (usize, usize) {
-        let mut new_x = vehicle.position.0 as isize;
-        let mut new_y = vehicle.position.1 as isize;
-    
-        match vehicle.orientation {
-            Orientation::Horizontal => new_x += distance,
-            Orientation::Vertical => new_y += distance,
-        }
-    
-        // Clamp the new position to stay within grid bounds
-        new_x = new_x.clamp(0, GRID_WIDTH as isize - 1);
-        new_y = new_y.clamp(0, GRID_HEIGHT as isize - 1);
-    
-        (new_x as usize, new_y as usize)
-    }*/
 
     // === end of movement code ===
 }
