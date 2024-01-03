@@ -17,6 +17,8 @@ pub struct Move {
     pub position_y: Option<isize>,
     // You can keep the distance field for movement-specific data
     // Add any additional fields needed for placement, like orientation
+    pub new_position_x: Option<usize>,
+    pub new_position_y: Option<usize>,
 }
 
 impl Hash for Move {

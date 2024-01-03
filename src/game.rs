@@ -4,6 +4,7 @@ use crate::GlGraphics;
 
 use crate::CELL_SIZE;
 
+use crate::PuzzleGenerator;
 use crate::puzzle_generator::GRID_WIDTH;
 use crate::puzzle_generator::GRID_HEIGHT;
 use crate::vehicle_struct::Move;
@@ -297,6 +298,8 @@ impl Game {
             distance: 0, // Set to 0 or a default value for placements
             position_x: Some(position.0 as isize),
             position_y: Some(position.1 as isize),
+            new_position_x: None,
+            new_position_y: None,
         };
         self.record_puzzle_generation_move(placement_move);
     }
@@ -309,6 +312,8 @@ impl Game {
             distance,
             position_x: None,
             position_y: None,
+            new_position_x: None,
+            new_position_y: None,
         };
         self.record_puzzle_generation_move(movement_move);
     }
@@ -320,40 +325,75 @@ impl Game {
 
     // Method to apply a move to the game state
     pub fn apply_move(&mut self, game_move: Move) {
-        match game_move.move_type {
-            MoveType::Placement => {
-                // For Placement, you might already be handling this elsewhere
-                self.move_history.push(game_move);
+        if let Some(vehicle) = self.vehicles.get(game_move.vehicle_index) {
+            let old_position = (vehicle.position.0 as usize, vehicle.position.1 as usize);
+            let vehicle_size = vehicle.size;
+            let vehicle_orientation = vehicle.orientation;
+            let vehicle_id = vehicle.id;
+    
+            let new_position = self.calculate_new_position(&vehicle_orientation, vehicle_size, old_position, game_move.distance);
+    
+            // Separate the mutable borrow of self.vehicles
+            self.clear_vehicle_position(old_position, vehicle_size, vehicle_orientation);
+            if let Some(vehicle) = self.vehicles.get_mut(game_move.vehicle_index) {
+                vehicle.position = (new_position.0 as u8, new_position.1 as u8);
+            }
+            self.update_vehicle_position(vehicle_id, new_position, vehicle_size, vehicle_orientation);
+        }
+    }    
+
+    fn calculate_new_position(&self, orientation: &Orientation, size: (u8, u8), old_position: (usize, usize), distance: isize) -> (usize, usize) {
+        let (old_x, old_y) = old_position;
+    
+        let new_x = match orientation {
+            Orientation::Horizontal => {
+                let temp_x = old_x as isize + distance;
+                temp_x.clamp(0, GRID_WIDTH as isize - size.0 as isize) as usize
             },
-            MoveType::Movement => {
-                let (new_x, new_y); // Declare variables to store the new position
-                let move_clone = game_move.clone(); // Clone the move
+            _ => old_x,
+        };
     
-                if let Some(vehicle) = self.vehicles.get_mut(game_move.vehicle_index) {
-                    // Calculate new position based on the move distance
-                    match vehicle.orientation {
-                        Orientation::Horizontal => {
-                            new_x = ((vehicle.position.0 as isize) + game_move.distance) as u8;
-                            new_y = vehicle.position.1;
-                        },
-                        Orientation::Vertical => {
-                            new_x = vehicle.position.0;
-                            new_y = ((vehicle.position.1 as isize) + game_move.distance) as u8;
-                        },
-                    }
+        let new_y = match orientation {
+            Orientation::Vertical => {
+                let temp_y = old_y as isize + distance;
+                temp_y.clamp(0, GRID_HEIGHT as isize - size.1 as isize) as usize
+            },
+            _ => old_y,
+        };
     
-                    // Update vehicle's position
-                    vehicle.position = (new_x, new_y);
-    
-                    // Add the cloned move to the move history
-                    self.move_history.push(move_clone);
-                } else {
-                    return; // If vehicle not found, exit the function
+        (new_x, new_y)
+    } 
+
+    fn clear_vehicle_position(&mut self, position: (usize, usize), size: (u8, u8), orientation: Orientation) {
+        match orientation {
+            Orientation::Horizontal => {
+                for i in 0..size.0 as usize {
+                    self.grid[position.1][position.0 + i] = None;
                 }
+            },
+            Orientation::Vertical => {
+                for i in 0..size.1 as usize {
+                    self.grid[position.1 + i][position.0] = None;
+                }
+            },
+        }
+    }
     
-                // Update the grid to reflect the new position
-                // This is called outside the mutable borrow scope of `vehicle`
-                self.update_grid_after_move(game_move.vehicle_index, new_x, new_y);
+    fn update_vehicle_position(&mut self, vehicle_id: usize, position: (usize, usize), size: (u8, u8), orientation: Orientation) {
+        match orientation {
+            Orientation::Horizontal => {
+                for i in 0..size.0 as usize {
+                    if position.0 + i < GRID_WIDTH {
+                        self.grid[position.1][position.0 + i] = Some(vehicle_id);
+                    }
+                }
+            },
+            Orientation::Vertical => {
+                for i in 0..size.1 as usize {
+                    if position.1 + i < GRID_HEIGHT {
+                        self.grid[position.1 + i][position.0] = Some(vehicle_id);
+                    }
+                }
             },
         }
     }    

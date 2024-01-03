@@ -451,6 +451,7 @@ impl PuzzleGenerator {
 
     fn generate_move_if_valid(&self, vehicle: &Vehicle, distance: isize, game: &Game) -> Option<Move> {
         let new_position = self.calculate_new_position(vehicle, distance);
+    
         if self.check_movement_validity(new_position, vehicle.size, vehicle.orientation, game) {
             Some(Move {
                 vehicle_index: vehicle.id,
@@ -458,75 +459,99 @@ impl PuzzleGenerator {
                 distance,
                 position_x: None,
                 position_y: None,
+                new_position_x: Some(new_position.0),
+                new_position_y: Some(new_position.1),
             })
         } else {
             None
         }
     }
-
-    // Evaluate and select the best move from a list of valid moves
-    fn evaluate_and_select_best_move(&self, moves: &[Move], game: &Game) -> Option<Move> {
+    
+    fn evaluate_and_select_best_move(&self, moves: &[Move], game: &mut Game) -> Option<Move> {
         let mut best_move = None;
         let mut highest_complexity = 0;
-
+    
         for move_candidate in moves {
-            let complexity = self.calculate_move_complexity(game, move_candidate);
-            println!("Evaluating move: Vehicle Index: {}, Complexity: {}", move_candidate.vehicle_index, complexity);
-
-            if complexity > highest_complexity {
-                highest_complexity = complexity;
-                best_move = Some(move_candidate.clone());
+            if let Some(vehicle) = game.vehicles.get(move_candidate.vehicle_index) {
+                let new_position = self.calculate_new_position(vehicle, move_candidate.distance);
+    
+                let mut move_with_position = move_candidate.clone();
+                move_with_position.new_position_x = Some(new_position.0);
+                move_with_position.new_position_y = Some(new_position.1);
+    
+                let complexity = self.calculate_move_complexity(game, &move_with_position);
+                println!("Evaluating move: Vehicle Index: {}, Complexity: {}", move_candidate.vehicle_index, complexity);
+    
+                if complexity > highest_complexity {
+                    highest_complexity = complexity;
+                    best_move = Some(move_with_position);
+                }
             }
         }
-
+    
         if let Some(ref best_move) = best_move {
             println!("Selected best move: Vehicle Index: {}, Complexity: {}", best_move.vehicle_index, highest_complexity);
+            // Update best_move with the new position before returning
+            if let Some(vehicle) = game.vehicles.get(best_move.vehicle_index) {
+                let new_position = self.calculate_new_position(vehicle, best_move.distance);
+                return Some(Move {
+                    new_position_x: Some(new_position.0),
+                    new_position_y: Some(new_position.1),
+                    ..best_move.clone()
+                });
+            }
         }
-
+    
         best_move
-    }
+    }       
 
     // --- start of complexity functions ---
 
+    // Function to calculate the complexity of a move
     fn calculate_move_complexity(&self, game: &Game, move_candidate: &Move) -> usize {
         let mut complexity = 0;
-    
-        let vehicle = &game.vehicles[move_candidate.vehicle_index];
-        let new_position = if move_candidate.move_type == MoveType::Movement {
-            // If it's a movement, calculate the new position after the move
-            self.calculate_new_position(vehicle, move_candidate.distance)
+
+        if let (Some(new_x), Some(new_y)) = (move_candidate.new_position_x, move_candidate.new_position_y) {
+            // If new position is provided, calculate complexity based on the new position
+            let new_position = (new_x, new_y);
+
+            // Add complexity based on distance moved
+            complexity += move_candidate.distance.abs() as usize;
+
+            // Add complexity based on proximity to critical points like exit or main vehicle
+            complexity += self.calculate_proximity_complexity(new_position, game);
+
+            // Add complexity based on blocking potential (e.g., blocking the path of the main vehicle)
+            let vehicle = &game.vehicles[move_candidate.vehicle_index];
+            complexity += self.calculate_blocking_potential(new_position, vehicle.size, vehicle.orientation, game);
         } else {
-            // If it's a placement, use the provided position
-            (move_candidate.position_x.unwrap() as usize, move_candidate.position_y.unwrap() as usize)
-        };
-    
-        // Example: Add complexity based on distance moved
-        complexity += move_candidate.distance.abs() as usize;
-    
-        // Example: Add complexity based on proximity to critical points like exit or main vehicle
-        complexity += self.calculate_proximity_complexity(new_position, game);
-    
-        // Example: Add complexity based on blocking potential (e.g., blocking the path of the main vehicle)
-        complexity += self.calculate_blocking_potential(new_position, vehicle.size, vehicle.orientation, game);
-    
+            // Handle the case where new position is not provided
+            // You may want to log an error or provide default behavior
+            println!("Error: Move does not have a valid new position for complexity calculation.");
+        }
+
         complexity
     }
-    
+
     fn calculate_new_position(&self, vehicle: &Vehicle, distance: isize) -> (usize, usize) {
-        let mut new_x = vehicle.position.0 as isize;
-        let mut new_y = vehicle.position.1 as isize;
+        let new_x = match vehicle.orientation {
+            Orientation::Horizontal => {
+                let temp_x = (vehicle.position.0 as isize) + distance;
+                temp_x.clamp(0, GRID_WIDTH as isize - vehicle.size.0 as isize) as usize
+            },
+            _ => vehicle.position.0 as usize,
+        };
     
-        match vehicle.orientation {
-            Orientation::Horizontal => new_x += distance,
-            Orientation::Vertical => new_y += distance,
-        }
+        let new_y = match vehicle.orientation {
+            Orientation::Vertical => {
+                let temp_y = (vehicle.position.1 as isize) + distance;
+                temp_y.clamp(0, GRID_HEIGHT as isize - vehicle.size.1 as isize) as usize
+            },
+            _ => vehicle.position.1 as usize,
+        };
     
-        // Clamp the new position to stay within grid bounds
-        new_x = new_x.clamp(0, GRID_WIDTH as isize - 1);
-        new_y = new_y.clamp(0, GRID_HEIGHT as isize - 1);
-    
-        (new_x as usize, new_y as usize)
-    }
+        (new_x, new_y)
+    }    
 
     fn calculate_proximity_complexity(&self, position: (usize, usize), game: &Game) -> usize {
         let mut complexity = 0;
@@ -734,15 +759,16 @@ pub enum Direction {
 }
 
 impl Move {
-    // Constructor for creating a new Move
-    pub fn new(vehicle_index: usize, distance: isize) -> Self {
+    // Updated constructor for creating a new Move
+    pub fn new(vehicle_index: usize, distance: isize, new_position_x: Option<usize>, new_position_y: Option<usize>) -> Self {
         Move {
             vehicle_index,
-            move_type: MoveType::Placement,
-            distance, // the movement distance
+            move_type: MoveType::Placement, // or Movement, as per your game logic
+            distance,
             position_x: None,
             position_y: None,
-            // Initialize additional fields as needed
+            new_position_x,
+            new_position_y,
         }
     }
 
