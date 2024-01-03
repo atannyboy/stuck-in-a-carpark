@@ -5,6 +5,7 @@ use rand::prelude::SliceRandom;
 use std::collections::HashSet;
 use crate::vehicle_struct::Move;
 use crate::game::MoveType;
+use crate::solver::solve_puzzle;
 
 pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
@@ -41,16 +42,18 @@ impl PuzzleGenerator {
     
         while !self.is_puzzle_complex_enough(game) {
             let mut rng = rand::thread_rng();
-            if rng.gen_bool(0.5) { // 50% chance to either place a new vehicle or move an existing one
-                println!("Attempting to place a new vehicle");
+            if rng.gen_bool(0.5) {
                 self.add_vehicle_strategically(game, &mut vehicle_id);
             } else {
-                println!("Attempting to move an existing vehicle");
                 self.add_vehicle_movements(game);
             }
     
-            // Debug: Print current state of the game
-            println!("Current game state:");
+            // Invoke the solver
+            let current_state = State::new(game.vehicles.clone());
+            let solution = solve_puzzle(current_state);
+            // ... handle the solution ...
+    
+            // Debug output
             for vehicle in &game.vehicles {
                 println!("Vehicle ID: {}, Position: {:?}", vehicle.id, vehicle.position);
             }
@@ -58,7 +61,7 @@ impl PuzzleGenerator {
     
         println!("Puzzle generation complete");
         game.vehicles.clone()
-    }
+    }    
     
     fn calculate_current_puzzle_complexity(&self, game: &Game) -> usize {
         let mut total_complexity = 0;
