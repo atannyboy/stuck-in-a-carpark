@@ -20,30 +20,30 @@ impl State {
         State { vehicles }
     }
 
-    fn generate_neighbors(&self) -> Vec<(State, Move)> {
+    fn generate_neighbors(&self, state: State) -> Vec<(State, Move)> {
         let mut neighbors = Vec::new();
 
         for (index, vehicle) in self.vehicles.iter().enumerate() {
             // Check and generate moves in each direction
-            if vehicle.can_move_up(&self) {
+            if vehicle.can_move_up(&state) {
                 println!("Generating neighbor: Moving vehicle {} up", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_up();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Up, 1)));
             }
-            if vehicle.can_move_down(&self) {
+            if vehicle.can_move_down(&state) {
                 println!("Generating neighbor: Moving vehicle {} down", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_down();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Down, 1)));
             }
-            if vehicle.can_move_left(&self) {
+            if vehicle.can_move_left(&state) {
                 println!("Generating neighbor: Moving vehicle {} left", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_left();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Left, 1)));
             }
-            if vehicle.can_move_right(&self) {
+            if vehicle.can_move_right(&state) {
                 println!("Generating neighbor: Moving vehicle {} right", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_right();
@@ -54,11 +54,21 @@ impl State {
         neighbors
     }
 
-    fn is_solution(state: State) -> bool {
-        // Assuming the red car is the first vehicle in the list and the exit is on the right
-        let red_car = state.vehicles[0];
-        usize::from(red_car.position.0) == EXIT_X && red_car.orientation == Orientation::Horizontal
-    }
+    fn is_solution(state: &State) -> bool {
+        let red_car = &state.vehicles[0]; // Assuming the red car is always at index 0
+        println!("Checking if the red car is in a winning position...");
+    
+        if red_car.orientation == Orientation::Horizontal {
+            let is_solution = usize::from(red_car.position.0 + red_car.size.0 as u8 - 1) == EXIT_X;
+            println!("Red car position: {:?}, Size: {:?}, Exit position: {}, Is solution: {}", red_car.position, red_car.size, EXIT_X, is_solution);
+            
+            is_solution
+        } else {
+            // Additional handling if the red car can be vertical
+            println!("Red car is not horizontal. Current orientation: {:?}", red_car.orientation);
+            false
+        }
+    }    
 
     pub fn solve_puzzle(&self, initial_state: State) -> Option<Vec<Move>> {
         let mut queue = VecDeque::new();
@@ -70,14 +80,14 @@ impl State {
     
         while let Some(state) = queue.pop_front() {
             println!("Exploring State: {:?}", state); // Debug statement
-            if Self::is_solution(state.clone()) {
+            if Self::is_solution(&state.clone()) {
                 println!("Solution found for State: {:?}", state); // Debug statement
                 let solution_path = reconstruct_path(state, predecessors);
                 Self::display_solution_steps(&self.vehicles, &solution_path);
                 return Some(solution_path);
             }
     
-            for (next_state, game_move) in state.generate_neighbors() {
+            for (next_state, game_move) in self.generate_neighbors(state.clone()) {
                 if !visited.contains(&next_state) {
                     visited.insert(next_state.clone());
                     predecessors.insert(next_state.clone(), (state.clone(), game_move));
@@ -85,7 +95,7 @@ impl State {
                 }
             }
         }
-    
+        println!("No solution found");
         None // No solution found
     }
 
@@ -118,15 +128,15 @@ impl State {
         }
     }
 
-    pub fn display_carpark(vehicles: &[Vehicle], grid: &[[Option<usize>; GRID_WIDTH as usize]; GRID_WIDTH as usize]) {
+    pub fn display_carpark(vehicles: &[Vehicle], grid: &[[Option<usize>; GRID_WIDTH]; GRID_HEIGHT]) {
         let mut output = String::new();
     
-        for y in 0..grid.len() {
-            for x in 0..grid[0].len() {
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
                 match grid[y][x] {
                     Some(index) => {
                         let vehicle = &vehicles[index];
-                        output.push_str(&format!("{}▓▓", vehicle.ansi_color.to_ansi())); // Color the vehicle
+                        output.push_str(&format!("{}▓▓", vehicle.ansi_color.to_ansi())); // Use vehicle's ANSI color
                     },
                     None => output.push_str("\x1b[90m░░"), // Grey for empty spaces
                 }
@@ -142,17 +152,16 @@ impl State {
     
         for (index, vehicle) in vehicles.iter().enumerate() {
             // Determine the grid cells occupied by the vehicle
-            // This depends on the vehicle's position, size, and orientation
             match vehicle.orientation {
                 Orientation::Horizontal => {
-                    for x in vehicle.position.0..vehicle.position.0 + vehicle.size.0 as u8 {
+                    for x in vehicle.position.0..vehicle.position.0 + u8::from(vehicle.size.0) {
                         if x < GRID_WIDTH as u8 {
                             grid[vehicle.position.1 as usize][x as usize] = Some(index);
                         }
                     }
                 },
                 Orientation::Vertical => {
-                    for y in vehicle.position.1..vehicle.position.1 + vehicle.size.1 as u8 {
+                    for y in vehicle.position.1..vehicle.position.1 + u8::from(vehicle.size.1) {
                         if y < GRID_HEIGHT as u8 {
                             grid[y as usize][vehicle.position.0 as usize] = Some(index);
                         }
@@ -183,11 +192,24 @@ impl State {
             }
         }
     
-        // Place the vehicles on the grid
+        // Repopulate the grid with the current positions of the vehicles
         for (index, vehicle) in vehicles.iter().enumerate() {
-            // Assuming vehicles occupy one grid cell for simplicity
-            // Adjust this logic based on the actual size and orientation of the vehicles
-            grid[vehicle.position.1 as usize][vehicle.position.0 as usize] = Some(index);
+            match vehicle.orientation {
+                Orientation::Horizontal => {
+                    for x in vehicle.position.0..vehicle.position.0 + u8::from(vehicle.size.0) {
+                        if x < GRID_WIDTH as u8 {
+                            grid[vehicle.position.1 as usize][x as usize] = Some(index);
+                        }
+                    }
+                },
+                Orientation::Vertical => {
+                    for y in vehicle.position.1..vehicle.position.1 + u8::from(vehicle.size.1) {
+                        if y < GRID_HEIGHT as u8 {
+                            grid[y as usize][vehicle.position.0 as usize] = Some(index);
+                        }
+                    }
+                },
+            }
         }
     }
 }

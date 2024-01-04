@@ -215,87 +215,185 @@ impl Vehicle {
     // === start of solver code ===
 
     pub fn can_move_up(&self, state: &State) -> bool {
+        // Debug statement
+        println!("Checking if vehicle {} can move up from position {:?}", self.id, self.position);
+        // Check if the vehicle is oriented vertically and not at the upper boundary
         if self.orientation == Orientation::Vertical && self.position.1 > 0 {
-            !(0..self.size.1).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.0 == self.position.0 && 
-                    v.position.1 + (v.size.0 as u8) - 1 == self.position.1.checked_sub(1 + offset).unwrap_or(0)
-                })
+            let new_positions: HashSet<(u8, u8)> = self.occupied_positions()
+                .iter()
+                .map(|&(x, y)| (x, y - 1))  // Shift all positions up by 1 unit
+                .collect();
+    
+            !state.vehicles.iter().any(|other_vehicle| {
+                if other_vehicle.id != self.id {
+                    if new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0 {
+                        // Debug message
+                        println!("Return true: vehicle {} can move up from position {:?}", self.id, self.position);
+                        true
+                    } else {
+                        println!("Return false: vehicle {} cannot move up from position {:?}", self.id, self.position);
+                        false
+                    }
+                    /*new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0*/
+                } else {
+                    println!("Return false: vehicle {} cannot move up from position {:?}", self.id, self.position);
+                    false
+                }
             })
         } else {
+            println!("Return false: vehicle {} cannot move up from position {:?}", self.id, self.position);
             false
         }
     }
 
     pub fn can_move_down(&self, state: &State) -> bool {
+        // Debug statement
+        println!("Checking if vehicle {} can move down from position {:?}", self.id, self.position);
+        // Check if the vehicle is oriented vertically and within grid bounds
         if self.orientation == Orientation::Vertical && usize::from(self.position.1 + self.size.1 as u8) < GRID_HEIGHT {
-            !(0..self.size.1).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.0 == self.position.0 && 
-                    v.position.1 == self.position.1 + offset + 1
-                })
+            let new_positions: HashSet<(u8, u8)> = self.occupied_positions()
+                .iter()
+                .map(|&(x, y)| (x, y + 1))  // Shift all positions down by 1 unit
+                .collect();
+    
+            !state.vehicles.iter().any(|other_vehicle| {
+                if other_vehicle.id != self.id {
+                    if new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0 {
+                        // Debug message
+                        println!("Return true: vehicle {} can move down from position {:?}", self.id, self.position);
+                        true
+                    } else {
+                        println!("Return false: vehicle {} cannot move down from position {:?}", self.id, self.position);
+                        false
+                    }
+                    /*new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0*/
+                } else {
+                    println!("Return false: vehicle {} cannot move down from position {:?}", self.id, self.position);
+                    false
+                }
             })
         } else {
+            println!("Return false: vehicle {} cannot move down from position {:?}", self.id, self.position);
             false
         }
     }
 
     pub fn can_move_left(&self, state: &State) -> bool {
+        // Debug statement
+        println!("Checking if vehicle {} can move left from position {:?}", self.id, self.position);
+        // Check if the vehicle is oriented horizontally and not at the leftmost boundary
         if self.orientation == Orientation::Horizontal && self.position.0 > 0 {
-            !(0..self.size.0).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.1 == self.position.1 && 
-                    v.position.0 + (v.size.0 as u8) - 1 == self.position.0.checked_sub(1 + offset).unwrap_or(0)
-                })
+            let new_positions: HashSet<(u8, u8)> = self.occupied_positions()
+                .iter()
+                .map(|&(x, y)| (x - 1, y))  // Shift all positions left by 1 unit
+                .collect();
+    
+            !state.vehicles.iter().any(|other_vehicle| {
+                if other_vehicle.id != self.id {
+                    if new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0 {
+                        // Debug message
+                        println!("Return true: vehicle {} can move left from position {:?}", self.id, self.position);
+                        true
+                    } else {
+                        println!("Return false: vehicle {} cannot move left from position {:?}", self.id, self.position);
+                        false
+                    }
+                    /*new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0*/
+                } else {
+                    println!("Return false: vehicle {} cannot move left from position {:?}", self.id, self.position);
+                    false
+                }
             })
         } else {
+            println!("Return false: vehicle {} cannot move left from position {:?}", self.id, self.position);
             false
         }
-    }
+    }    
 
     pub fn can_move_right(&self, state: &State) -> bool {
+        // Debug statement
+        println!("Checking if vehicle {} can move right from position {:?}", self.id, self.position);
+        // Check if the vehicle is oriented horizontally and within grid bounds
         if self.orientation == Orientation::Horizontal && usize::from(self.position.0 + self.size.0 as u8) < GRID_WIDTH {
-            !(0..self.size.0).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.1 == self.position.1 && 
-                    v.position.0 == self.position.0 + offset + 1
-                })
+            // Calculate potential new positions if the vehicle moves right
+            let new_positions: HashSet<(u8, u8)> = self.occupied_positions()
+                .iter()
+                .map(|&(x, y)| (x + 1, y))  // Shift all positions right by 1 unit
+                .collect();
+    
+            // Check for collision with other vehicles
+            !state.vehicles.iter().any(|other_vehicle| {
+                // Ensure we're not checking the vehicle against itself
+                if other_vehicle.id != self.id {
+                    if new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0 {
+                        // Debug message
+                        println!("Return true: vehicle {} can move right from position {:?}", self.id, self.position);
+                        true
+                    } else {
+                        println!("Return false: vehicle {} cannot move right from position {:?}", self.id, self.position);
+                        false
+                    }
+                    // Check if any new position collides with other vehicle's occupied positions
+                    /*new_positions.intersection(&other_vehicle.occupied_positions()).count() > 0*/
+                } else {
+                    println!("Return false: vehicle {} cannot move right from position {:?}", self.id, self.position);
+                    false
+                }
             })
         } else {
+            println!("Return false: vehicle {} cannot move right from position {:?}", self.id, self.position);
             false
         }
     }
 
     pub fn move_up(&mut self) {
+        // Debug message
+        println!("Moving vehicle {} up from position {:?}", self.id, self.position);
         if self.orientation == Orientation::Vertical {
-            self.position.1 = self.position.1.saturating_sub(1);
+            // Check that the vehicle is not at the upper boundary
+            if self.position.1 > 0 {
+                self.position.1 = self.position.1.saturating_sub(1);
+                println!("New position of vehicle {}: {:?}", self.id, self.position);
+            }
         }
         // No action for horizontal vehicles, as they can't move up/down
     }
 
     pub fn move_down(&mut self) {
+        // Debug message
+        println!("Moving vehicle {} down from position {:?}", self.id, self.position);
         if self.orientation == Orientation::Vertical {
-            // Ensure the new position doesn't exceed the grid boundary
-            self.position.1 = (self.position.1 + 1).min((GRID_HEIGHT - 1) as u8);
+            // Check that the vehicle does not exceed the grid boundary at the bottom
+            if usize::from(self.position.1 + self.size.1 as u8) < GRID_HEIGHT {
+                self.position.1 = (self.position.1 + 1).min((GRID_HEIGHT - 1) as u8);
+                println!("New position of vehicle {}: {:?}", self.id, self.position);
+            }
         }
         // No action for horizontal vehicles
     }
 
     pub fn move_left(&mut self) {
+        // Debug message
+        println!("Moving vehicle {} left from position {:?}", self.id, self.position);
         if self.orientation == Orientation::Horizontal {
-            self.position.0 = self.position.0.saturating_sub(1);
+            // Check that the vehicle is not at the leftmost boundary
+            if self.position.0 > 0 {
+                self.position.0 = self.position.0.saturating_sub(1);
+                println!("New position of vehicle {}: {:?}", self.id, self.position);
+            }
         }
         // No action for vertical vehicles, as they can't move left/right
-    }
+    }    
 
     pub fn move_right(&mut self) {
+        // Debug message
+        println!("Moving vehicle {} right from position {:?}", self.id, self.position);
         if self.orientation == Orientation::Horizontal {
-            // Ensure the new position doesn't exceed the grid boundary
-            self.position.0 = (self.position.0 + 1).min((GRID_WIDTH - 1) as u8);
+            // Check that the vehicle does not exceed the grid boundary on the right
+            if usize::from(self.position.0 + self.size.0 as u8) < GRID_WIDTH {
+                self.position.0 = (self.position.0 + 1).min((GRID_WIDTH - 1) as u8);
+                println!("New position of vehicle {}: {:?}", self.id, self.position);
+            }
         }
         // No action for vertical vehicles
     }
