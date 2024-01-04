@@ -46,8 +46,10 @@ impl PartialEq for Move {
 // === start of solver code ===
 
 use crate::solver::State;
+use crate::puzzle_generator::GRID_HEIGHT;
+use crate::GRID_WIDTH;
 
-// === end of solve code ===
+// === end of solver code ===
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Debug)]
 pub enum AnsiColorCode {
@@ -213,14 +215,89 @@ impl Vehicle {
     // === start of solver code ===
 
     pub fn can_move_up(&self, state: &State) -> bool {
-        // Logic to determine if the vehicle can move up
-        // Example: Check if position is within boundaries and not blocked by other vehicles
-        false
+        if self.orientation == Orientation::Vertical && self.position.1 > 0 {
+            !(0..self.size.1).any(|offset| {
+                state.vehicles.iter().any(|v| {
+                    v.id != self.id && 
+                    v.position.0 == self.position.0 && 
+                    v.position.1 + (v.size.0 as u8) - 1 == self.position.1.checked_sub(1 + offset).unwrap_or(0)
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    pub fn can_move_down(&self, state: &State) -> bool {
+        if self.orientation == Orientation::Vertical && usize::from(self.position.1 + self.size.1 as u8) < GRID_HEIGHT {
+            !(0..self.size.1).any(|offset| {
+                state.vehicles.iter().any(|v| {
+                    v.id != self.id && 
+                    v.position.0 == self.position.0 && 
+                    v.position.1 == self.position.1 + offset + 1
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    pub fn can_move_left(&self, state: &State) -> bool {
+        if self.orientation == Orientation::Horizontal && self.position.0 > 0 {
+            !(0..self.size.0).any(|offset| {
+                state.vehicles.iter().any(|v| {
+                    v.id != self.id && 
+                    v.position.1 == self.position.1 && 
+                    v.position.0 + (v.size.0 as u8) - 1 == self.position.0.checked_sub(1 + offset).unwrap_or(0)
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    pub fn can_move_right(&self, state: &State) -> bool {
+        if self.orientation == Orientation::Horizontal && usize::from(self.position.0 + self.size.0 as u8) < GRID_WIDTH {
+            !(0..self.size.0).any(|offset| {
+                state.vehicles.iter().any(|v| {
+                    v.id != self.id && 
+                    v.position.1 == self.position.1 && 
+                    v.position.0 == self.position.0 + offset + 1
+                })
+            })
+        } else {
+            false
+        }
     }
 
     pub fn move_up(&mut self) {
-        // Logic to move the vehicle up
-        // Example: Decrease the y-coordinate of the position
+        if self.orientation == Orientation::Vertical {
+            self.position.1 = self.position.1.saturating_sub(1);
+        }
+        // No action for horizontal vehicles, as they can't move up/down
+    }
+
+    pub fn move_down(&mut self) {
+        if self.orientation == Orientation::Vertical {
+            // Ensure the new position doesn't exceed the grid boundary
+            self.position.1 = (self.position.1 + 1).min((GRID_HEIGHT - 1) as u8);
+        }
+        // No action for horizontal vehicles
+    }
+
+    pub fn move_left(&mut self) {
+        if self.orientation == Orientation::Horizontal {
+            self.position.0 = self.position.0.saturating_sub(1);
+        }
+        // No action for vertical vehicles, as they can't move left/right
+    }
+
+    pub fn move_right(&mut self) {
+        if self.orientation == Orientation::Horizontal {
+            // Ensure the new position doesn't exceed the grid boundary
+            self.position.0 = (self.position.0 + 1).min((GRID_WIDTH - 1) as u8);
+        }
+        // No action for vertical vehicles
     }
 
     //=== end of solver code ===
