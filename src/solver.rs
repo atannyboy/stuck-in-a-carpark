@@ -20,30 +20,30 @@ impl State {
         State { vehicles }
     }
 
-    fn generate_neighbors(&self) -> Vec<(State, Move)> {
+    fn generate_neighbors(&self, state: State) -> Vec<(State, Move)> {
         let mut neighbors = Vec::new();
 
         for (index, vehicle) in self.vehicles.iter().enumerate() {
             // Check and generate moves in each direction
-            if vehicle.can_move_up(&self) {
+            if vehicle.can_move_up(&state) {
                 println!("Generating neighbor: Moving vehicle {} up", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_up();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Up, 1)));
             }
-            if vehicle.can_move_down(&self) {
+            if vehicle.can_move_down(&state) {
                 println!("Generating neighbor: Moving vehicle {} down", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_down();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Down, 1)));
             }
-            if vehicle.can_move_left(&self) {
+            if vehicle.can_move_left(&state) {
                 println!("Generating neighbor: Moving vehicle {} left", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_left();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Left, 1)));
             }
-            if vehicle.can_move_right(&self) {
+            if vehicle.can_move_right(&state) {
                 println!("Generating neighbor: Moving vehicle {} right", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_right();
@@ -69,19 +69,19 @@ impl State {
         visited.insert(initial_state);
     
         while let Some(state) = queue.pop_front() {
-            println!("Exploring State: {:?}", state); // Debug statement
+            println!("Exploring State: {:?}", state.clone()); // Debug statement
             if Self::is_solution(state.clone()) {
-                println!("Solution found for State: {:?}", state); // Debug statement
-                let solution_path = reconstruct_path(state, predecessors);
+                println!("Solution found for State: {:?}", state.clone()); // Debug statement
+                let solution_path = reconstruct_path(state.clone(), predecessors);
                 Self::display_solution_steps(&self.vehicles, &solution_path);
                 return Some(solution_path);
             }
     
-            for (next_state, game_move) in state.generate_neighbors() {
+            for (next_state, game_move) in &self.generate_neighbors(state.clone()) {
                 if !visited.contains(&next_state) {
                     visited.insert(next_state.clone());
-                    predecessors.insert(next_state.clone(), (state.clone(), game_move));
-                    queue.push_back(next_state);
+                    predecessors.insert(next_state.clone(), (state.clone(), game_move.clone()));
+                    queue.push_back(next_state.clone());
                 }
             }
         }
@@ -106,6 +106,10 @@ impl State {
     fn display_solution_steps(initial_vehicles: &[Vehicle], solution: &[Move]) {
         let mut vehicles = initial_vehicles.to_vec();
         let mut grid = Self::create_initial_grid(&vehicles);
+
+        // Display the initial state of the carpark
+        println!("Initial State:");
+        Self::display_carpark(&vehicles, &grid);
     
         for (step, game_move) in solution.iter().enumerate() {
             // Apply the move to update vehicle positions
