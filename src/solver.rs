@@ -166,7 +166,6 @@ impl State {
     
     fn apply_move(vehicles: &mut [Vehicle], game_move: &Move) {
         let vehicle = &mut vehicles[game_move.vehicle_index];
-        // Depending on the direction of the move, update the vehicle's position
         match game_move.direction {
             Direction::Up => vehicle.move_up(),
             Direction::Down => vehicle.move_down(),
@@ -176,20 +175,31 @@ impl State {
     }
 
     fn update_grid(grid: &mut [[Option<usize>; GRID_WIDTH]; GRID_HEIGHT], vehicles: &[Vehicle]) {
-        // Clear the grid
         for y in 0..GRID_HEIGHT {
             for x in 0..GRID_WIDTH {
                 grid[y][x] = None;
             }
         }
     
-        // Place the vehicles on the grid
         for (index, vehicle) in vehicles.iter().enumerate() {
-            // Assuming vehicles occupy one grid cell for simplicity
-            // Adjust this logic based on the actual size and orientation of the vehicles
-            grid[vehicle.position.1 as usize][vehicle.position.0 as usize] = Some(index);
+            match vehicle.orientation {
+                Orientation::Horizontal => {
+                    for x in usize::from(vehicle.position.0)..usize::from(vehicle.position.0) + usize::from(vehicle.size.0) {
+                        if x < GRID_WIDTH {
+                            grid[usize::from(vehicle.position.1)][x] = Some(index);
+                        }
+                    }
+                },
+                Orientation::Vertical => {
+                    for y in usize::from(vehicle.position.1)..usize::from(vehicle.position.1) + usize::from(vehicle.size.1) {
+                        if y < GRID_HEIGHT {
+                            grid[y][usize::from(vehicle.position.0)] = Some(index);
+                        }
+                    }
+                },
+            }
         }
-    }
+    } 
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]

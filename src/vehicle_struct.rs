@@ -216,12 +216,20 @@ impl Vehicle {
 
     pub fn can_move_up(&self, state: &State) -> bool {
         if self.orientation == Orientation::Vertical && self.position.1 > 0 {
-            !(0..self.size.1).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.0 == self.position.0 && 
-                    v.position.1 + (v.size.0 as u8) - 1 == self.position.1.checked_sub(1 + offset).unwrap_or(0)
-                })
+            let new_start_y = usize::from(self.position.1) - 1;
+            // Check for collision with all vehicles
+            !state.vehicles.iter().any(|v| {
+                if v.id != self.id {
+                    let mut overlap_y = new_start_y..usize::from(self.position.1);
+                    let mut overlap_x = usize::from(self.position.0)..usize::from(self.position.0) + usize::from(self.size.0);
+    
+                    let v_y_range = usize::from(v.position.1)..usize::from(v.position.1) + usize::from(v.size.1);
+                    let v_x_range = usize::from(v.position.0)..usize::from(v.position.0) + usize::from(v.size.0);
+    
+                    overlap_x.any(|x| v_x_range.contains(&x)) && overlap_y.any(|y| v_y_range.contains(&y))
+                } else {
+                    false
+                }
             })
         } else {
             false
@@ -229,13 +237,21 @@ impl Vehicle {
     }
 
     pub fn can_move_down(&self, state: &State) -> bool {
-        if self.orientation == Orientation::Vertical && usize::from(self.position.1 + self.size.1 as u8) < GRID_HEIGHT {
-            !(0..self.size.1).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.0 == self.position.0 && 
-                    v.position.1 == self.position.1 + offset + 1
-                })
+        if self.orientation == Orientation::Vertical && usize::from(self.position.1) + usize::from(self.size.1) < GRID_HEIGHT {
+            let new_end_y = usize::from(self.position.1) + usize::from(self.size.1);
+            // Check for collision with all vehicles
+            !state.vehicles.iter().any(|v| {
+                if v.id != self.id {
+                    let mut overlap_y = usize::from(self.position.1)..new_end_y;
+                    let mut overlap_x = usize::from(self.position.0)..usize::from(self.position.0) + usize::from(self.size.0);
+    
+                    let v_y_range = usize::from(v.position.1)..usize::from(v.position.1) + usize::from(v.size.1);
+                    let v_x_range = usize::from(v.position.0)..usize::from(v.position.0) + usize::from(v.size.0);
+    
+                    overlap_x.any(|x| v_x_range.contains(&x)) && overlap_y.any(|y| v_y_range.contains(&y))
+                } else {
+                    false
+                }
             })
         } else {
             false
@@ -244,12 +260,20 @@ impl Vehicle {
 
     pub fn can_move_left(&self, state: &State) -> bool {
         if self.orientation == Orientation::Horizontal && self.position.0 > 0 {
-            !(0..self.size.0).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.1 == self.position.1 && 
-                    v.position.0 + (v.size.0 as u8) - 1 == self.position.0.checked_sub(1 + offset).unwrap_or(0)
-                })
+            let new_start_x = usize::from(self.position.0) - 1;
+            // Check for collision with all vehicles
+            !state.vehicles.iter().any(|v| {
+                if v.id != self.id {
+                    let mut overlap_x = new_start_x..usize::from(self.position.0);
+                    let mut overlap_y = usize::from(self.position.1)..usize::from(self.position.1) + usize::from(self.size.1);
+    
+                    let v_x_range = usize::from(v.position.0)..usize::from(v.position.0) + usize::from(v.size.0);
+                    let v_y_range = usize::from(v.position.1)..usize::from(v.position.1) + usize::from(v.size.1);
+    
+                    overlap_x.any(|x| v_x_range.contains(&x)) && overlap_y.any(|y| v_y_range.contains(&y))
+                } else {
+                    false
+                }
             })
         } else {
             false
@@ -257,47 +281,53 @@ impl Vehicle {
     }
 
     pub fn can_move_right(&self, state: &State) -> bool {
-        if self.orientation == Orientation::Horizontal && usize::from(self.position.0 + self.size.0 as u8) < GRID_WIDTH {
-            !(0..self.size.0).any(|offset| {
-                state.vehicles.iter().any(|v| {
-                    v.id != self.id && 
-                    v.position.1 == self.position.1 && 
-                    v.position.0 == self.position.0 + offset + 1
+        if self.orientation == Orientation::Horizontal {
+            let new_end_x = usize::from(self.position.0) + usize::from(self.size.0);
+            if new_end_x < GRID_WIDTH {
+                // Check for collision with all vehicles
+                !state.vehicles.iter().any(|v| {
+                    if v.id != self.id {
+                        let mut overlap_x = usize::from(self.position.0)..new_end_x;
+                        let mut overlap_y = usize::from(self.position.1)..usize::from(self.position.1) + 1;
+    
+                        let v_x_range = usize::from(v.position.0)..usize::from(v.position.0) + usize::from(v.size.0);
+                        let v_y_range = usize::from(v.position.1)..usize::from(v.position.1) + usize::from(v.size.1);
+    
+                        overlap_x.any(|x| v_x_range.contains(&x)) && overlap_y.any(|y| v_y_range.contains(&y))
+                    } else {
+                        false
+                    }
                 })
-            })
+            } else {
+                false
+            }
         } else {
             false
         }
-    }
+    }    
 
     pub fn move_up(&mut self) {
         if self.orientation == Orientation::Vertical {
             self.position.1 = self.position.1.saturating_sub(1);
         }
-        // No action for horizontal vehicles, as they can't move up/down
     }
 
     pub fn move_down(&mut self) {
         if self.orientation == Orientation::Vertical {
-            // Ensure the new position doesn't exceed the grid boundary
-            self.position.1 = (self.position.1 + 1).min((GRID_HEIGHT - 1) as u8);
+            self.position.1 = (usize::from(self.position.1) + 1).min(GRID_HEIGHT - usize::from(self.size.1)) as u8;
         }
-        // No action for horizontal vehicles
     }
-
+    
     pub fn move_left(&mut self) {
         if self.orientation == Orientation::Horizontal {
             self.position.0 = self.position.0.saturating_sub(1);
         }
-        // No action for vertical vehicles, as they can't move left/right
     }
 
     pub fn move_right(&mut self) {
         if self.orientation == Orientation::Horizontal {
-            // Ensure the new position doesn't exceed the grid boundary
-            self.position.0 = (self.position.0 + 1).min((GRID_WIDTH - 1) as u8);
+            self.position.0 = (usize::from(self.position.0) + 1).min(GRID_WIDTH - usize::from(self.size.0)) as u8;
         }
-        // No action for vertical vehicles
     }
 
     //=== end of solver code ===
