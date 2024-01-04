@@ -1,6 +1,7 @@
 mod vehicle_struct;
 mod game;
 mod puzzle_generator;
+mod solver;
 
 use game::Game;
 

@@ -5,7 +5,8 @@ use rand::prelude::SliceRandom;
 use std::collections::HashSet;
 use crate::vehicle_struct::Move;
 use crate::game::MoveType;
-use crate::solver::solve_puzzle;
+use crate::solver;
+use crate::solver::State;
 
 pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
@@ -43,14 +44,18 @@ impl PuzzleGenerator {
         while !self.is_puzzle_complex_enough(game) {
             let mut rng = rand::thread_rng();
             if rng.gen_bool(0.5) {
+                println!("Attempting to place a new vehicle");
                 self.add_vehicle_strategically(game, &mut vehicle_id);
             } else {
+                println!("Attempting to move an existing vehicle");
                 self.add_vehicle_movements(game);
             }
-    
+            
+            // Debug: Print current state of the game
+            println!("Current game state");
             // Invoke the solver
             let current_state = State::new(game.vehicles.clone());
-            let solution = solve_puzzle(current_state);
+            let solution = current_state.solve_puzzle(current_state.clone());
             // ... handle the solution ...
     
             // Debug output

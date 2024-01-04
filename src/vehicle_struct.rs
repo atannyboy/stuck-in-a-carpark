@@ -43,6 +43,12 @@ impl PartialEq for Move {
 
 // === end of movement code ===
 
+// === start of solver code ===
+
+use crate::solver::State;
+
+// === end of solve code ===
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Debug)]
 pub enum AnsiColorCode {
     Red,    // Representing "\x1b[31m"
@@ -80,6 +86,29 @@ pub struct Vehicle {
     pub position: (u8, u8),
     pub orientation: Orientation,
     pub ansi_color: AnsiColorCode, // ANSI color code for terminal display
+}
+
+// Implement PartialEq for custom equality checks
+impl PartialEq for Vehicle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id &&
+        self.position == other.position &&
+        self.orientation == other.orientation
+        // Skip comparing `color`
+    }
+}
+
+// Since we have a custom PartialEq, we need to implement Eq as well
+impl Eq for Vehicle {}
+
+// Implement Hash for custom hash computation
+impl Hash for Vehicle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.position.hash(state);
+        self.orientation.hash(state);
+        // Skip hashing `color`
+    }
 }
 
 // In some other part of your code:
@@ -180,9 +209,24 @@ impl Vehicle {
     }
 
     // === end of movement code ===
+
+    // === start of solver code ===
+
+    pub fn can_move_up(&self, state: &State) -> bool {
+        // Logic to determine if the vehicle can move up
+        // Example: Check if position is within boundaries and not blocked by other vehicles
+        false
+    }
+
+    pub fn move_up(&mut self) {
+        // Logic to move the vehicle up
+        // Example: Decrease the y-coordinate of the position
+    }
+
+    //=== end of solver code ===
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
 pub enum Orientation {
     Horizontal,
     Vertical,
