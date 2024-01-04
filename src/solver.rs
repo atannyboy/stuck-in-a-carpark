@@ -30,24 +30,28 @@ impl State {
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_up();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Up, 1)));
+                continue;
             }
             if vehicle.can_move_down(&state) {
                 println!("Generating neighbor: Moving vehicle {} down", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_down();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Down, 1)));
+                continue;
             }
             if vehicle.can_move_left(&state) {
                 println!("Generating neighbor: Moving vehicle {} left", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_left();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Left, 1)));
+                continue;
             }
             if vehicle.can_move_right(&state) {
                 println!("Generating neighbor: Moving vehicle {} right", index);
                 let mut new_vehicles = self.vehicles.clone();
                 new_vehicles[index].move_right();
                 neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Right, 1)));
+                continue;
             }
         }
 
