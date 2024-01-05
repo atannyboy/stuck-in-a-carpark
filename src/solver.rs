@@ -153,13 +153,17 @@ impl State {
         let mut vehicles = initial_vehicles.to_vec();
         let mut grid = Self::create_initial_grid(&vehicles);
     
+        // Display the initial state of the puzzle
+        println!("Initial Puzzle State:");
+        Self::display_carpark(&vehicles, &grid);
+    
         for (step, game_move) in solution.iter().enumerate() {
             // Apply the move to update vehicle positions
             Self::apply_move(&mut vehicles, game_move);
             // Update the grid
             Self::update_grid(&mut grid, &vehicles);
             // Display the carpark for this step
-            println!("Step {}: Applying move {:?}", step + 1, game_move);
+            println!("Step {}: Applying move {:?}", step + 1, game_move); // step + 1 since initial state was step 0
             Self::display_carpark(&vehicles, &grid);
         }
     }
