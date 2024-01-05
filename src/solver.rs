@@ -16,46 +16,67 @@ pub struct State {
 
 impl State {
     // Constructor
-    pub fn new(vehicles: Vec<Vehicle>) -> Self {
-        State { vehicles }
+    pub fn new(vehicles: &Vec<Vehicle>) -> Self {
+        State { vehicles: vehicles.to_vec() }
     }
 
-    fn generate_neighbors(&self, state: State) -> Vec<(State, Move)> {
+    fn generate_neighbors(state: &State) -> Vec<(State, Move)> {
         let mut neighbors = Vec::new();
-
-        for (index, vehicle) in self.vehicles.iter().enumerate() {
-            // Check and generate moves in each direction
+    
+        for (index, vehicle) in state.vehicles.iter().enumerate() {
+            // Generate moves for each direction
             if vehicle.can_move_up(&state) {
-                println!("Generating neighbor: Moving vehicle {} up", index);
-                let mut new_vehicles = self.vehicles.clone();
-                new_vehicles[index].move_up();
-                neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Up, 1)));
-                continue;
+                let mut new_state = state.clone();
+                new_state.vehicles[index].move_up();
+                neighbors.push((State::new(&new_state.vehicles), Move::new(index, Direction::Up, 1)));
             }
             if vehicle.can_move_down(&state) {
-                println!("Generating neighbor: Moving vehicle {} down", index);
-                let mut new_vehicles = self.vehicles.clone();
-                new_vehicles[index].move_down();
-                neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Down, 1)));
-                continue;
+                let mut new_state = state.clone();
+                new_state.vehicles[index].move_down();
+                neighbors.push((State::new(&new_state.vehicles), Move::new(index, Direction::Down, 1)));
             }
             if vehicle.can_move_left(&state) {
-                println!("Generating neighbor: Moving vehicle {} left", index);
-                let mut new_vehicles = self.vehicles.clone();
-                new_vehicles[index].move_left();
-                neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Left, 1)));
-                continue;
+                let mut new_state = state.clone();
+                new_state.vehicles[index].move_left();
+                neighbors.push((State::new(&new_state.vehicles), Move::new(index, Direction::Left, 1)));
             }
             if vehicle.can_move_right(&state) {
-                println!("Generating neighbor: Moving vehicle {} right", index);
-                let mut new_vehicles = self.vehicles.clone();
-                new_vehicles[index].move_right();
-                neighbors.push((State::new(new_vehicles), Move::new(index, Direction::Right, 1)));
-                continue;
+                let mut new_state = state.clone();
+                new_state.vehicles[index].move_right();
+                neighbors.push((State::new(&new_state.vehicles), Move::new(index, Direction::Right, 1)));
             }
         }
-
+    
         neighbors
+    }
+
+    fn special_red_car_handling(&self, current_state: &State) -> Option<Vec<(State, Move)>> {
+        let mut red_car_moves = Vec::new();
+        let red_car = &current_state.vehicles[0]; // Assuming the red car is always at index 0
+    
+        // Check if the red car can move towards the exit (to the right)
+        if self.is_exit_direction(red_car, Direction::Right) && red_car.can_move_right(&self) {
+            let mut new_state = current_state.clone();
+            new_state.vehicles[0].move_right(); // Move the red car to the right
+            red_car_moves.push((new_state, Move::new(0, Direction::Right, 1)));
+        }
+    
+        // Optionally, add logic for other directions if needed
+    
+        if red_car_moves.is_empty() {
+            None
+        } else {
+            Some(red_car_moves)
+        }
+    }
+
+    fn is_exit_direction(&self, vehicle: &Vehicle, direction: Direction) -> bool {
+        // Implement logic to check if moving in the specified direction
+        // brings the vehicle closer to the exit
+        // For simplicity, assuming exit is always to the right
+        let is_towards_exit = direction == Direction::Right;
+        println!("Is moving {:?} towards the exit for vehicle at position {:?}: {}", direction, vehicle.position, is_towards_exit);
+        is_towards_exit
     }
 
     fn is_solution(state: &State) -> bool {
@@ -63,7 +84,7 @@ impl State {
         println!("Checking if the red car is in a winning position...");
     
         if red_car.orientation == Orientation::Horizontal {
-            let is_solution = usize::from(red_car.position.0 + red_car.size.0 as u8 - 1) == EXIT_X;
+            let is_solution = usize::from(red_car.position.0/* + red_car.size.0 as u8 - 1*/) == EXIT_X;
             println!("Red car position: {:?}, Size: {:?}, Exit position: {}, Is solution: {}", red_car.position, red_car.size, EXIT_X, is_solution);
             
             is_solution
@@ -74,7 +95,7 @@ impl State {
         }
     }    
 
-    pub fn solve_puzzle(&self, initial_state: State) -> Option<Vec<Move>> {
+    pub fn solve_puzzle(&mut self, initial_state: State) -> Option<Vec<Move>> {
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
         let mut predecessors: HashMap<State, (State, Move)> = HashMap::new();
@@ -86,36 +107,47 @@ impl State {
             println!("Exploring State: {:?}", state); // Debug statement
             if Self::is_solution(&state.clone()) {
                 println!("Solution found for State: {:?}", state); // Debug statement
-                let solution_path = reconstruct_path(state, predecessors);
+                let solution_path = Self::reconstruct_path(state, &predecessors);
                 Self::display_solution_steps(&self.vehicles, &solution_path);
                 return Some(solution_path);
             }
     
-            for (next_state, game_move) in self.generate_neighbors(state.clone()) {
+            // Special case handling for red car
+            if let Some(red_car_moves) = self.special_red_car_handling(&state) {
+                for (red_car_state, red_car_move) in red_car_moves {
+                    if !visited.contains(&red_car_state) {
+                        visited.insert(red_car_state.clone());
+                        predecessors.insert(red_car_state.clone(), (state.clone(), red_car_move));
+                        queue.push_back(red_car_state);
+                    }
+                }
+            }
+    
+            for (next_state, game_move) in Self::generate_neighbors(&state) {
+                println!("Generated neighbor state: {:?}", next_state);
                 if !visited.contains(&next_state) {
+                    println!("New state, adding to queue and visited: {:?}", next_state);
                     visited.insert(next_state.clone());
                     predecessors.insert(next_state.clone(), (state.clone(), game_move));
                     queue.push_back(next_state);
+                } else {
+                    println!("State already visited: {:?}", next_state);
                 }
             }
         }
         println!("No solution found");
         None // No solution found
     }
-
-    fn reconstruct_path(end_state: State, predecessors: HashMap<State, (State, Move)>) -> Vec<Move> {
-        let mut path = Vec::new();
-        let mut current_state = end_state;
     
-        while let Some((prev_state, game_move)) = predecessors.get(&current_state) {
-            println!("Reconstructing move: {:?}", game_move); // Debug statement
-            path.push(game_move.clone());
+    fn reconstruct_path(mut current_state: State, predecessors: &HashMap<State, (State, Move)>) -> Vec<Move> {
+        let mut path = Vec::new();
+        while let Some(&(ref prev_state, ref move_)) = predecessors.get(&current_state) {
+            path.push(move_.clone());
             current_state = prev_state.clone();
         }
-    
-        path.reverse(); // The path is constructed in reverse order
+        path.reverse();
         path
-    }
+    }  
 
     fn display_solution_steps(initial_vehicles: &[Vehicle], solution: &[Move]) {
         let mut vehicles = initial_vehicles.to_vec();
@@ -244,7 +276,7 @@ pub enum Direction {
     // Add other directions if applicable
 }
 
-fn reconstruct_path(end_state: State, predecessors: HashMap<State, (State, Move)>) -> Vec<Move> {
+/*fn reconstruct_path(end_state: State, predecessors: HashMap<State, (State, Move)>) -> Vec<Move> {
     let mut path = Vec::new();
     let mut current_state = end_state;
 
@@ -255,4 +287,4 @@ fn reconstruct_path(end_state: State, predecessors: HashMap<State, (State, Move)
 
     path.reverse(); // The path is constructed in reverse order, so it needs to be reversed
     path
-}
+}*/

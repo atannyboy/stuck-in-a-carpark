@@ -54,7 +54,7 @@ impl PuzzleGenerator {
             // Debug: Print current state of the game
             println!("Current game state");
             // Invoke the solver
-            let current_state = State::new(game.vehicles.clone());
+            let mut current_state = State::new(&game.vehicles.clone());
             let solution = current_state.solve_puzzle(current_state.clone());
             // ... handle the solution ...
     
@@ -108,7 +108,7 @@ impl PuzzleGenerator {
 		// - Size: (2, 1), meaning it occupies two horizontal grid spaces
 		// - Color: Red (not specified here but should be defined in the Vehicle struct)
 		// - Orientation: Horizontal
-		// - Position: (5, 4), with the origin (0, 0) at the top-left of the grid
+		// - Position: (5, 3), with the origin (0, 0) at the top-left of the grid
 
 		let red_car = Vehicle {
 			id: 0,

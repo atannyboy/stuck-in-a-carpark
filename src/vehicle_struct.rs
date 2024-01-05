@@ -338,6 +338,9 @@ impl Vehicle {
             // Check that the vehicle is not at the upper boundary
             if self.position.1 > 0 {
                 self.position.1 = self.position.1.saturating_sub(1);
+                /*if self.id == 0 {
+                    red_car.position.1 = self.position.1;
+                }*/
                 println!("New position of vehicle {}: {:?}", self.id, self.position);
             }
         }
@@ -351,6 +354,9 @@ impl Vehicle {
             // Check that the vehicle does not exceed the grid boundary at the bottom
             if usize::from(self.position.1 + self.size.1 as u8) < GRID_HEIGHT {
                 self.position.1 = (self.position.1 + 1).min((GRID_HEIGHT - 1) as u8);
+                /*if self.id == 0 {
+                    red_car.position.1 = self.position.1;
+                }*/
                 println!("New position of vehicle {}: {:?}", self.id, self.position);
             }
         }
@@ -364,6 +370,9 @@ impl Vehicle {
             // Check that the vehicle is not at the leftmost boundary
             if self.position.0 > 0 {
                 self.position.0 = self.position.0.saturating_sub(1);
+                /*if self.id == 0 {
+                    red_car.position.0 = self.position.0;
+                }*/
                 println!("New position of vehicle {}: {:?}", self.id, self.position);
             }
         }
@@ -377,6 +386,9 @@ impl Vehicle {
             // Check that the vehicle does not exceed the grid boundary on the right
             if usize::from(self.position.0 + self.size.0 as u8) < GRID_WIDTH {
                 self.position.0 = (self.position.0 + 1).min((GRID_WIDTH - 1) as u8);
+                /*if self.id == 0 {
+                    red_car.position.0 = self.position.0;
+                }*/
                 println!("New position of vehicle {}: {:?}", self.id, self.position);
             }
         }
