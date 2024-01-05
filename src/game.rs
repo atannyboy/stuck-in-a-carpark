@@ -68,28 +68,30 @@ impl Game {
         }
     }
 
-    pub fn is_occupied_by_vehicle(&self, x: usize, y: usize, vehicle_index: usize) -> bool {
+    /*pub fn is_occupied_by_vehicle(&self, x: usize, y: usize, vehicle_index: usize) -> bool {
         match self.grid[y][x] {
             Some(id) => id == vehicle_index,
             None => false,
         }
-    }
+    }*/
 
-    pub fn vehicle_at_position(&self, x: f64, y: f64) -> Option<usize> {
-        let grid_x = (x / CELL_SIZE).floor() as u8;
-        let grid_y = (y / CELL_SIZE).floor() as u8;
-
+    pub fn vehicle_at_position(&self, grid_x: u8, grid_y: u8) -> Option<usize> {
+        println!("Clicked position: grid_x: {}, grid_y: {}", grid_x, grid_y);
+    
         for (index, vehicle) in self.vehicles.iter().enumerate() {
             let (vehicle_x, vehicle_y) = vehicle.position;
             if vehicle.orientation == Orientation::Horizontal && vehicle_y == grid_y && grid_x >= vehicle_x && grid_x < vehicle_x + vehicle.size.0 as u8 {
+                println!("Vehicle found at clicked position: Vehicle Index: {}", index);
                 return Some(index);
             } else if vehicle.orientation == Orientation::Vertical && vehicle_x == grid_x && grid_y >= vehicle_y && grid_y < vehicle_y + vehicle.size.1 as u8 {
+                println!("Vehicle found at clicked position: Vehicle Index: {}", index);
                 return Some(index);
             }
         }
-
+    
+        println!("No vehicle at clicked position");
         None
-    }
+    }    
 
     pub fn is_path_clear(&self, vehicle_index: usize, new_x: u8, new_y: u8) -> bool {
         let vehicle = &self.vehicles[vehicle_index];
@@ -109,70 +111,76 @@ impl Game {
         match vehicle.orientation {
             Orientation::Horizontal => {
                 for x in start_x..=end_x {
-                    if let Some(other_vehicle_index) = self.grid[vehicle.position.1 as usize][x as usize] {
-                        let other_vehicle = &self.vehicles[other_vehicle_index];
-                        if other_vehicle.position != vehicle.position {
-                            return false;
-                        }
+                    if self.grid[vehicle.position.1 as usize][x as usize].is_some() && self.grid[vehicle.position.1 as usize][x as usize] != Some(vehicle_index) {
+                        return false;
                     }
                 }
             }
             Orientation::Vertical => {
                 for y in start_y..=end_y {
-                    if let Some(other_vehicle_index) = self.grid[y as usize][vehicle.position.0 as usize] {
-                        let other_vehicle = &self.vehicles[other_vehicle_index];
-                        if other_vehicle.position != vehicle.position {
-                            return false;
-                        }
+                    if self.grid[y as usize][vehicle.position.0 as usize].is_some() && self.grid[y as usize][vehicle.position.0 as usize] != Some(vehicle_index) {
+                        return false;
                     }
                 }
             }
         }
     
         true
-    }    
+    }
 
     pub fn handle_mouse_click(&mut self, x: f64, y: f64) {
+        println!("handle_mouse_click called with x: {}, y: {}", x, y);
+    
         let grid_x = (x / CELL_SIZE).floor() as u8;
         let grid_y = (y / CELL_SIZE).floor() as u8;
+        println!("Converted to grid coordinates: grid_x: {}, grid_y: {}", grid_x, grid_y);
     
-        if let Some(vehicle_index) = self.selected_vehicle_index {
-            let vehicle = &self.vehicles[vehicle_index];
+        println!("Currently selected vehicle index before click: {:?}", self.selected_vehicle_index);
     
-            if self.grid[grid_y as usize][grid_x as usize].is_none() {
-                let new_position = match vehicle.orientation {
-                    Orientation::Horizontal if grid_y == vehicle.position.1 => {
-                        if grid_x < vehicle.position.0 {
-                            (grid_x, vehicle.position.1)
-                        } else {
-                            (grid_x - vehicle.size.0 as u8 + 1, vehicle.position.1)
-                        }
-                    }
-                    Orientation::Vertical if grid_x == vehicle.position.0 => {
-                        if grid_y < vehicle.position.1 {
-                            (vehicle.position.0, grid_y)
-                        } else {
-                            (vehicle.position.0, grid_y - vehicle.size.1 as u8 + 1)
-                        }
-                    }
-                    _ => (vehicle.position.0, vehicle.position.1),
-                };
-    
-                if new_position.0 < 7 && new_position.1 < 7 && self.is_path_clear(vehicle_index, new_position.0, new_position.1) {
-                    self.move_vehicle(vehicle_index, new_position.0, new_position.1);
+        match self.vehicle_at_position(grid_x, grid_y) {
+            Some(new_vehicle_index) if Some(new_vehicle_index) != self.selected_vehicle_index => {
+                println!("New vehicle selected at clicked position: Index {}", new_vehicle_index);
+                self.selected_vehicle_index = Some(new_vehicle_index);
+            }
+            _ => {
+                if let Some(selected_index) = self.selected_vehicle_index {
+                    println!("Attempting to move currently selected vehicle at index: {}", selected_index);
+                    self.attempt_to_move_vehicle(selected_index, grid_x, grid_y);
                 }
             }
-    
-            // Check if the clicked position has another vehicle to select
-            if let Some(new_vehicle_index) = self.vehicle_at_position(x, y) {
-                if new_vehicle_index != vehicle_index {
-                    self.selected_vehicle_index = Some(new_vehicle_index);
-                }
-            }
-        } else {
-            self.selected_vehicle_index = self.vehicle_at_position(x, y);
         }
+    
+        println!("Currently selected vehicle index after click: {:?}", self.selected_vehicle_index);
     }
+    
+    fn attempt_to_move_vehicle(&mut self, vehicle_index: usize, grid_x: u8, grid_y: u8) {
+        let vehicle = &self.vehicles[vehicle_index];
+    
+        let new_position = match vehicle.orientation {
+            Orientation::Horizontal if grid_y == vehicle.position.1 => {
+                let new_x = if grid_x > vehicle.position.0 {
+                    grid_x - (vehicle.size.0 as u8 - 1)
+                } else {
+                    grid_x
+                };
+                (new_x, vehicle.position.1)
+            },
+            Orientation::Vertical if grid_x == vehicle.position.0 => {
+                let new_y = if grid_y > vehicle.position.1 {
+                    grid_y - (vehicle.size.1 as u8 - 1)
+                } else {
+                    grid_y
+                };
+                (vehicle.position.0, new_y)
+            },
+            _ => vehicle.position,
+        };
+    
+        if new_position != vehicle.position && self.is_path_clear(vehicle_index, new_position.0, new_position.1) {
+            self.move_vehicle(vehicle_index, new_position.0, new_position.1);
+            /*self.selected_vehicle_index = None;*/ // Deselect vehicle after moving
+        }
+    }    
 
     pub fn check_win_condition(&self) -> bool {
         let red_vehicle = self.vehicles.iter().find(|c| c.color == [1.0, 0.0, 0.0, 1.0]).unwrap();
@@ -180,48 +188,29 @@ impl Game {
     }
 
     pub fn move_vehicle(&mut self, vehicle_index: usize, new_x: u8, new_y: u8) {
-        let vehicle = self.vehicles[vehicle_index];
-        
-        if self.is_path_clear(vehicle_index, new_x, new_y) {
-            // Clear old positions
-            let (old_x, old_y) = (vehicle.position.0 as usize, vehicle.position.1 as usize);
-            
-            if vehicle.orientation == Orientation::Horizontal {
-                for i in 0..vehicle.size.0 {
-                    self.grid[old_y as usize][((old_x + i as usize) as usize) as usize] = None;
-                }
-            } else {
-                for i in 0..vehicle.size.1 {
-                    self.grid[((old_y + i as usize) as usize) as usize][old_x as usize] = None;
-                }
-            }
+        println!("Attempting to move vehicle. Index: {}, New Position: ({}, {})", vehicle_index, new_x, new_y); // Debug statement
 
+        let vehicle = self.vehicles[vehicle_index];
+        println!("Vehicle's current position: ({}, {})", vehicle.position.0, vehicle.position.1); // Debug statement
+    
+        if self.is_path_clear(vehicle_index, new_x, new_y) {
             // Update the vehicle's position in the vehicles vector
             self.vehicles[vehicle_index].position = (new_x, new_y);
-
-            // Update new positions in the grid
-            let (x, y) = (new_x as usize, new_y as usize);
-
-            if vehicle.orientation == Orientation::Horizontal {
-                for i in 1..vehicle.size.0 {
-                    self.grid[y as usize][x + i as usize] = Some(vehicle_index);
-                }
-            } else {
-                for i in 1..vehicle.size.1 {
-                    self.grid[y + i as usize][x as usize] = Some(vehicle_index);
-                }
-            }
-
+    
+            // Update grid after the move
+            self.update_grid_after_move(vehicle_index, new_x, new_y);
+    
             println!("Vehicle moved to new position: {}, {}", new_x, new_y);
-
-            // Check for win condition after the move
+    
             if self.check_win_condition() {
                 println!("You've won the game!");
             }
+
+            println!("Vehicle moved to new position: {}, {}", new_x, new_y); // Debug statement
         } else {
-            println!("Move is not valid. Another vehicle is in the way.");
+            println!("Move is not valid. Another vehicle is in the way."); // Debug statement
         }
-    }
+    }    
 
     pub fn render(&mut self, args: &piston::input::RenderArgs, gl: &mut GlGraphics) {
         use graphics::*;
@@ -368,12 +357,12 @@ impl Game {
         match orientation {
             Orientation::Horizontal => {
                 for i in 0..size.0 as usize {
-                    self.grid[position.1][position.0 + i] = None;
+                    self.grid[position.1][position.0 + i as usize] = None;
                 }
             },
             Orientation::Vertical => {
                 for i in 0..size.1 as usize {
-                    self.grid[position.1 + i][position.0] = None;
+                    self.grid[position.1 + i as usize][position.0] = None;
                 }
             },
         }
@@ -399,17 +388,11 @@ impl Game {
     }    
     
     fn update_grid_after_move(&mut self, vehicle_index: usize, new_x: u8, new_y: u8) {
-        // First, clear the old position of the vehicle on the grid
-        for y in 0..GRID_HEIGHT {
-            for x in 0..GRID_WIDTH {
-                if self.grid[y][x] == Some(vehicle_index) {
-                    self.grid[y][x] = None;
-                }
-            }
-        }
+        // Clear the old position of the vehicle on the grid
+        let vehicle = self.vehicles[vehicle_index];
+        self.clear_vehicle_position((vehicle.position.0 as usize, vehicle.position.1 as usize), vehicle.size, vehicle.orientation);
     
-        // Then, set the new position of the vehicle on the grid
-        let vehicle = &self.vehicles[vehicle_index];
+        // Set the new position of the vehicle on the grid
         match vehicle.orientation {
             Orientation::Horizontal => {
                 for i in 0..vehicle.size.0 as usize {
@@ -426,7 +409,7 @@ impl Game {
                 }
             },
         }
-    }    
+    }  
 
     // Method to undo the last move
     pub fn undo_last_move(&mut self) {
