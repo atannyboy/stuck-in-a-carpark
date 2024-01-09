@@ -10,7 +10,7 @@ use crate::solver::State;
 
 pub const GRID_WIDTH: usize = 7;
 pub const GRID_HEIGHT: usize = 7;
-const DESIRED_COMPLEXITY_THRESHOLD: usize = 30;
+const DESIRED_COMPLEXITY_THRESHOLD: usize = 60;
 const NUMBER_OF_MOVES_TO_CONSIDER: usize = 20;
 const MAX_MOVE_DISTANCE: isize = 5;
 

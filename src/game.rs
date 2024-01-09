@@ -96,6 +96,10 @@ impl Game {
     pub fn is_path_clear(&self, vehicle_index: usize, new_x: u8, new_y: u8) -> bool {
         let vehicle = &self.vehicles[vehicle_index];
     
+        // Debug: print initial check details
+        println!("Checking path for vehicle index {}: Current position: ({}, {}), New position: ({}, {})", 
+                 vehicle_index, vehicle.position.0, vehicle.position.1, new_x, new_y);
+    
         let (start_x, end_x) = if new_x > vehicle.position.0 {
             (vehicle.position.0, new_x)
         } else {
@@ -112,6 +116,8 @@ impl Game {
             Orientation::Horizontal => {
                 for x in start_x..=end_x {
                     if self.grid[vehicle.position.1 as usize][x as usize].is_some() && self.grid[vehicle.position.1 as usize][x as usize] != Some(vehicle_index) {
+                        // Debug: print information when path is blocked
+                        println!("Path blocked for horizontal movement at grid position ({}, {})", x, vehicle.position.1);
                         return false;
                     }
                 }
@@ -119,14 +125,18 @@ impl Game {
             Orientation::Vertical => {
                 for y in start_y..=end_y {
                     if self.grid[y as usize][vehicle.position.0 as usize].is_some() && self.grid[y as usize][vehicle.position.0 as usize] != Some(vehicle_index) {
+                        // Debug: print information when path is blocked
+                        println!("Path blocked for vertical movement at grid position ({}, {})", vehicle.position.0, y);
                         return false;
                     }
                 }
             }
         }
     
+        // Debug: Path is clear
+        println!("Path is clear for vehicle index {} to move to ({}, {})", vehicle_index, new_x, new_y);
         true
-    }
+    }    
 
     pub fn handle_mouse_click(&mut self, x: f64, y: f64) {
         println!("handle_mouse_click called with x: {}, y: {}", x, y);
@@ -151,10 +161,15 @@ impl Game {
         }
     
         println!("Currently selected vehicle index after click: {:?}", self.selected_vehicle_index);
+        println!("");
     }
     
     fn attempt_to_move_vehicle(&mut self, vehicle_index: usize, grid_x: u8, grid_y: u8) {
         let vehicle = &self.vehicles[vehicle_index];
+    
+        // Debug: Print the current vehicle's details
+        println!("Attempting to move vehicle at index {}. Current position: ({}, {}), Orientation: {:?}", 
+                 vehicle_index, vehicle.position.0, vehicle.position.1, vehicle.orientation);
     
         let new_position = match vehicle.orientation {
             Orientation::Horizontal if grid_y == vehicle.position.1 => {
@@ -163,6 +178,8 @@ impl Game {
                 } else {
                     grid_x
                 };
+                // Debug: Print new calculated position for horizontal orientation
+                println!("Calculated new horizontal position: ({}, {})", new_x, vehicle.position.1);
                 (new_x, vehicle.position.1)
             },
             Orientation::Vertical if grid_x == vehicle.position.0 => {
@@ -171,14 +188,26 @@ impl Game {
                 } else {
                     grid_y
                 };
+                // Debug: Print new calculated position for vertical orientation
+                println!("Calculated new vertical position: ({}, {})", vehicle.position.0, new_y);
                 (vehicle.position.0, new_y)
             },
-            _ => vehicle.position,
+            _ => {
+                // Debug: Vehicle orientation not matching or invalid click
+                println!("No movement required or invalid click. Vehicle remains at position: ({}, {})", vehicle.position.0, vehicle.position.1);
+                vehicle.position
+            }
         };
     
         if new_position != vehicle.position && self.is_path_clear(vehicle_index, new_position.0, new_position.1) {
+            // Debug: Path is clear, proceeding with move
+            println!("Path is clear. Moving vehicle from ({}, {}) to ({}, {})", 
+                     vehicle.position.0, vehicle.position.1, new_position.0, new_position.1);
             self.move_vehicle(vehicle_index, new_position.0, new_position.1);
-            /*self.selected_vehicle_index = None;*/ // Deselect vehicle after moving
+            //self.selected_vehicle_index = None; // Deselect vehicle after moving
+        } else {
+            // Debug: Path is not clear or no movement is required
+            println!("Move not possible or no movement required. Vehicle remains at position: ({}, {})", vehicle.position.0, vehicle.position.1);
         }
     }    
 
@@ -189,28 +218,31 @@ impl Game {
 
     pub fn move_vehicle(&mut self, vehicle_index: usize, new_x: u8, new_y: u8) {
         println!("Attempting to move vehicle. Index: {}, New Position: ({}, {})", vehicle_index, new_x, new_y); // Debug statement
-
+    
         let vehicle = self.vehicles[vehicle_index];
         println!("Vehicle's current position: ({}, {})", vehicle.position.0, vehicle.position.1); // Debug statement
     
         if self.is_path_clear(vehicle_index, new_x, new_y) {
+            // Clear the old position of the vehicle on the grid before updating its position
+            self.clear_vehicle_position((vehicle.position.0 as usize, vehicle.position.1 as usize), vehicle.size, vehicle.orientation);
+    
             // Update the vehicle's position in the vehicles vector
             self.vehicles[vehicle_index].position = (new_x, new_y);
     
-            // Update grid after the move
-            self.update_grid_after_move(vehicle_index, new_x, new_y);
+            // Set the new position of the vehicle on the grid
+            self.update_vehicle_position(vehicle_index, new_x, new_y, vehicle.orientation);
     
             println!("Vehicle moved to new position: {}, {}", new_x, new_y);
     
             if self.check_win_condition() {
                 println!("You've won the game!");
             }
-
+    
             println!("Vehicle moved to new position: {}, {}", new_x, new_y); // Debug statement
         } else {
             println!("Move is not valid. Another vehicle is in the way."); // Debug statement
         }
-    }    
+    }
 
     pub fn render(&mut self, args: &piston::input::RenderArgs, gl: &mut GlGraphics) {
         use graphics::*;
@@ -327,7 +359,7 @@ impl Game {
             if let Some(vehicle) = self.vehicles.get_mut(game_move.vehicle_index) {
                 vehicle.position = (new_position.0 as u8, new_position.1 as u8);
             }
-            self.update_vehicle_position(vehicle_id, new_position, vehicle_size, vehicle_orientation);
+            self.update_vehicle_position(vehicle_id, new_position.0 as u8, new_position.1 as u8, /*vehicle_size,*/ vehicle_orientation);
         }
     }    
 
@@ -356,41 +388,57 @@ impl Game {
     fn clear_vehicle_position(&mut self, position: (usize, usize), size: (u8, u8), orientation: Orientation) {
         match orientation {
             Orientation::Horizontal => {
-                for i in 0..size.0 as usize {
-                    self.grid[position.1][position.0 + i as usize] = None;
-                }
-            },
-            Orientation::Vertical => {
-                for i in 0..size.1 as usize {
-                    self.grid[position.1 + i as usize][position.0] = None;
-                }
-            },
-        }
-    }
+                // Debug: Print the range of horizontal positions being cleared
+                println!("Clearing horizontal positions from ({}, {}) to ({}, {})", position.0, position.1, position.0 + size.0 as usize - 1, position.1);
     
-    fn update_vehicle_position(&mut self, vehicle_id: usize, position: (usize, usize), size: (u8, u8), orientation: Orientation) {
-        match orientation {
-            Orientation::Horizontal => {
+                // Clear all horizontal positions occupied by the vehicle
                 for i in 0..size.0 as usize {
                     if position.0 + i < GRID_WIDTH {
-                        self.grid[position.1][position.0 + i] = Some(vehicle_id);
+                        // Debug: Print each position being cleared
+                        println!("Clearing position: ({}, {})", position.0 + i, position.1);
+                        self.grid[position.1][position.0 + i] = None;
                     }
                 }
             },
             Orientation::Vertical => {
+                // Debug: Print the range of vertical positions being cleared
+                println!("Clearing vertical positions from ({}, {}) to ({}, {})", position.0, position.1, position.0, position.1 + size.1 as usize - 1);
+    
+                // Clear all vertical positions occupied by the vehicle
                 for i in 0..size.1 as usize {
                     if position.1 + i < GRID_HEIGHT {
-                        self.grid[position.1 + i][position.0] = Some(vehicle_id);
+                        // Debug: Print each position being cleared
+                        println!("Clearing position: ({}, {})", position.0, position.1 + i);
+                        self.grid[position.1 + i][position.0] = None;
                     }
                 }
             },
         }
     }    
     
-    fn update_grid_after_move(&mut self, vehicle_index: usize, new_x: u8, new_y: u8) {
+    fn update_vehicle_position(&mut self, vehicle_index: usize, new_x: u8, new_y: u8, orientation: Orientation) {
+        match orientation {
+            Orientation::Horizontal => {
+                for i in 0..self.vehicles[vehicle_index].size.0 as usize {
+                    if new_x as usize + i < GRID_WIDTH {
+                        self.grid[new_y as usize][new_x as usize + i] = Some(vehicle_index);
+                    }
+                }
+            },
+            Orientation::Vertical => {
+                for i in 0..self.vehicles[vehicle_index].size.1 as usize {
+                    if new_y as usize + i < GRID_HEIGHT {
+                        self.grid[new_y as usize + i][new_x as usize] = Some(vehicle_index);
+                    }
+                }
+            },
+        }
+    } 
+    
+    /*fn update_grid_after_move(&mut self, vehicle_index: usize, new_x: u8, new_y: u8) {
         // Clear the old position of the vehicle on the grid
         let vehicle = self.vehicles[vehicle_index];
-        self.clear_vehicle_position((vehicle.position.0 as usize, vehicle.position.1 as usize), vehicle.size, vehicle.orientation);
+        /*self.clear_vehicle_position((vehicle.position.0 as usize, vehicle.position.1 as usize), vehicle.size, vehicle.orientation);*/
     
         // Set the new position of the vehicle on the grid
         match vehicle.orientation {
@@ -409,7 +457,7 @@ impl Game {
                 }
             },
         }
-    }  
+    }*/
 
     // Method to undo the last move
     pub fn undo_last_move(&mut self) {
