@@ -1,7 +1,8 @@
 use crate::Game;
 use crate::vehicle_struct::{VehicleStruct, Vehicle, Orientation, AnsiColorCode};
 use rand::Rng;
-use std::collections::{HashSet, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use rand::seq::SliceRandom;
 
 pub const GRID_WIDTH: usize = 7;
@@ -87,7 +88,7 @@ impl PuzzleGenerator {
         //
         // We therefore search the same state graph used by the exact solver,
         // then use the exact solver to measure the final minimum solution.
-        // Search harder for the 14-move target without exploding the exact-BFS
+        // Search harder for the 20-move target without exploding the exact-BFS
         // workload. The main changes are:
         //   * more independent layouts per batch;
         //   * a deeper reverse search so candidate states are farther from solved;
@@ -95,18 +96,20 @@ impl PuzzleGenerator {
         //   * more final candidates per layout;
         //   * a vehicle-count bias toward 12-15 vehicles, which has produced
         //     more difficult boards in practice.
-        const MAX_BATCHES: usize = 14;
-        const LAYOUTS_PER_BATCH: usize = 20;
+        const MAX_BATCHES: usize = 12;
+        const LAYOUTS_PER_BATCH: usize = 18;
 
         const MIN_VEHICLES: usize = 12;
         const MAX_VEHICLES: usize = 15;
         const MIN_ACCEPTABLE_MOVES: usize = 11;
         const TARGET_MOVES: usize = 20;
 
+        // Spend most work on reaching structurally deep states, not on
+        // mutating shallow 11-14 move candidates.
         const REVERSE_DEPTH: usize = 24;
-        const BEAM_WIDTH: usize = 700;
+        const BEAM_WIDTH: usize = 650;
         const SAMPLED_MOVES_PER_STATE: usize = 24;
-        const CANDIDATES_PER_LAYOUT: usize = 20;
+        const CANDIDATES_PER_LAYOUT: usize = 14;
 
         const MAX_EXACT_SEARCH_STATES: usize = 3_000_000;
 
@@ -114,7 +117,7 @@ impl PuzzleGenerator {
 
         for batch in 1..=MAX_BATCHES {
             println!(
-                "\n=== Generating 10-move puzzle batch {}/{} ===",
+                "\n=== Generating high-move puzzle batch {}/{} ===",
                 batch, MAX_BATCHES
             );
 
@@ -139,10 +142,10 @@ impl PuzzleGenerator {
                 // us useful variation for comparison.
                 let roll = rng.gen_range(0..100);
                 let target_vehicle_count = match roll {
-                    0..=14 => 12,  // 15%
-                    15..=39 => 13, // 25%
-                    40..=74 => 14, // 35%
-                    _ => 15,       // 25%
+                    0..=9 => 12,   // 10%
+                    10..=29 => 13, // 20%
+                    30..=69 => 14, // 40%
+                    _ => 15,       // 30%
                 };
 
                 while game.vehicles.len() < target_vehicle_count {
@@ -241,18 +244,29 @@ impl PuzzleGenerator {
                         .map(|(_, record)| record.solution_moves())
                         .unwrap_or(MIN_ACCEPTABLE_MOVES);
 
+                    // Do not spend mutation-search time on 11-14 move
+                    // candidates. Those puzzles are still useful as exact
+                    // measurements, but they are too far from the 20-move
+                    // target to justify repeated exact solves.
                     let hardening_floor =
-                        MIN_ACCEPTABLE_MOVES.max(current_record_moves.saturating_sub(3));
+                        15usize.max(current_record_moves.saturating_sub(2));
+
+                    let hardening_attempts =
+                        Self::hardening_attempt_budget(
+                            solution.solution_moves(),
+                            TARGET_MOVES,
+                        );
 
                     let (candidate_vehicles, candidate_solution) =
-                        if solution.solution_moves() >= hardening_floor
+                        if hardening_attempts > 0
+                            && solution.solution_moves() >= hardening_floor
                             && solution.solution_moves() < TARGET_MOVES
                         {
                             self.harden_candidate(
                                 game,
                                 &solution,
                                 TARGET_MOVES,
-                                28,
+                                hardening_attempts,
                                 MAX_EXACT_SEARCH_STATES,
                             )
                             .unwrap_or((game.vehicles.clone(), solution.clone()))
@@ -282,6 +296,20 @@ impl PuzzleGenerator {
                     if is_better_than_batch {
                         best_batch =
                             Some((candidate_vehicles.clone(), candidate_solution.clone()));
+                    }
+
+                    // Once the exact solver (or the hardener) reaches the
+                    // target, stop immediately. There is no benefit in solving
+                    // the remaining candidates in this layout.
+                    if candidate_solution.solution_moves() >= TARGET_MOVES {
+                        println!(
+                            "Target reached at layout {}, candidate {}: {} minimum moves.",
+                            layout_number,
+                            candidate_number + 1,
+                            candidate_solution.solution_moves()
+                        );
+                        self.print_solution(&candidate_solution, &candidate_vehicles);
+                        return candidate_vehicles; 
                     }
                 }
 
@@ -349,6 +377,27 @@ impl PuzzleGenerator {
             "Unable to generate any puzzle after {} batches.",
             MAX_BATCHES
         );
+    }
+
+    /// Allocate hardening work according to how close the candidate already is
+    /// to the target. Far-away candidates get only a small exploratory budget;
+    /// near-target candidates get more. This avoids spending most of the run
+    /// hardening 11-13 move puzzles when the real target is 20.
+    fn hardening_attempt_budget(solution_moves: usize, target_moves: usize) -> usize {
+        // Hardening is the expensive local-search stage. Below 15 moves,
+        // direct candidate generation is a better use of CPU time.
+        if solution_moves < 15 || solution_moves >= target_moves {
+            return 0;
+        }
+
+        match target_moves - solution_moves {
+            1 => 18,
+            2 => 14,
+            3 => 10,
+            4 => 8,
+            5 => 6,
+            _ => 4,
+        }
     }
 
     /// Search puzzle-space around a near-miss.
@@ -426,64 +475,75 @@ impl PuzzleGenerator {
             // -------------------------------------------------------------
             // 2. Two-move mutations.
             //
-            // These are important because a single legal relocation can
-            // easily make a puzzle easier, while two coordinated relocations
-            // can create a new blocker chain.
+            // Do not pay this quadratic cost until the current candidate is
+            // already within three moves of the target. Below that frontier,
+            // a new reverse-search candidate is a better use of CPU time.
             // -------------------------------------------------------------
-            let mut first_moves = Game::legal_moves_for_state(&search_vehicles, &state);
-            first_moves.sort_unstable_by_key(|(vehicle_index, destination)| {
-                let mut probe = state.clone();
-                probe[*vehicle_index] = *destination;
-                std::cmp::Reverse(Self::fast_reverse_heuristic(&search_vehicles, &probe, red_index, target_moves))
-            });
-            first_moves.truncate(14);
+            if search_solution.solution_moves() >= target_moves.saturating_sub(3) {
+                let mut first_moves =
+                    Game::legal_moves_for_state(&search_vehicles, &state);
 
-            for (first_vehicle, first_destination) in first_moves {
-                if first_vehicle == red_index {
-                    continue;
-                }
-
-                let mut intermediate = state.clone();
-                intermediate[first_vehicle] = first_destination;
-
-                let second_moves =
-                    Game::legal_moves_for_state(&search_vehicles, &intermediate);
-
-                for (second_vehicle, second_destination) in second_moves {
-                    if second_vehicle == red_index {
-                        continue;
-                    }
-
-                    // Avoid immediately undoing the first mutation.
-                    if second_vehicle == first_vehicle
-                        && second_destination == state[first_vehicle]
-                    {
-                        continue;
-                    }
-
-                    let mut next_state = intermediate.clone();
-                    next_state[second_vehicle] = second_destination;
-                    let key = Self::encode_state(&next_state);
-
-                    if tried.insert(key) {
-                        let heuristic = Self::fast_reverse_heuristic(
+                first_moves.sort_unstable_by_key(|(vehicle_index, destination)| {
+                    let mut probe = state.clone();
+                    probe[*vehicle_index] = *destination;
+                    std::cmp::Reverse(
+                        Self::fast_reverse_heuristic(
                             &search_vehicles,
-                            &next_state,
+                            &probe,
                             red_index,
                             target_moves,
-                        );
-                        options.push((next_state, heuristic));
+                        )
+                    )
+                });
+
+                first_moves.truncate(10);
+
+                for (first_vehicle, first_destination) in first_moves {
+                    if first_vehicle == red_index {
+                        continue;
+                    }
+
+                    let mut intermediate = state.clone();
+                    intermediate[first_vehicle] = first_destination;
+
+                    let second_moves =
+                        Game::legal_moves_for_state(&search_vehicles, &intermediate);
+
+                    for (second_vehicle, second_destination) in second_moves {
+                        if second_vehicle == red_index {
+                            continue;
+                        }
+
+                        // Avoid immediately undoing the first mutation.
+                        if second_vehicle == first_vehicle
+                            && second_destination == state[first_vehicle]
+                        {
+                            continue;
+                        }
+
+                        let mut next_state = intermediate.clone();
+                        next_state[second_vehicle] = second_destination;
+                        let key = Self::encode_state(&next_state);
+
+                        if tried.insert(key) {
+                            let heuristic = Self::fast_reverse_heuristic(
+                                &search_vehicles,
+                                &next_state,
+                                red_index,
+                                target_moves,
+                            );
+                            options.push((next_state, heuristic));
+                        }
                     }
                 }
             }
 
-            // During stagnation, add a very small three-move neighborhood.
-            // This is deliberately bounded: six first moves, three second
-            // moves, and two third moves per branch. It gives the hardener a
-            // chance to discover coordinated dependency changes that cannot be
-            // reached by a single or double mutation without blowing up the
-            // exact-solver workload.
-            if stagnation >= 1 || search_solution.solution_moves() + 2 < target_moves {
+            // Three-move mutations are reserved for 19-move near-misses that
+            // have actually stagnated. These are expensive but useful at the
+            // very end of the search.
+            if search_solution.solution_moves() >= target_moves.saturating_sub(1)
+                && stagnation >= 1
+            {
                 let seeds = Game::legal_moves_for_state(&search_vehicles, &state);
                 let mut ranked_seeds: Vec<(Vec<(u8, u8)>, usize)> = Vec::new();
 
@@ -557,7 +617,7 @@ impl PuzzleGenerator {
 
             // Normally test the best few. During stagnation, deliberately
             // include one lower-ranked mutation to escape local maxima.
-            let exact_tests = if stagnation >= 2 { 8usize } else { 6usize };
+            let exact_tests = if stagnation >= 2 { 4usize } else { 3usize };
             let top_count = options.len().min(exact_tests);
 
             let mut test_indices: Vec<usize> = (0..top_count).collect();
@@ -791,10 +851,23 @@ impl PuzzleGenerator {
                         continue;
                     }
 
+                    // At the final reverse layer, spend a little more CPU on
+                    // structural analysis so the exact solver receives states
+                    // that are more likely to have long true solutions.
+                    //
+                    // This replaces many wasted exact solves on 11-12 move
+                    // candidates with a cheap pre-ranking of the final beam.
+                    let deep_score = Self::deep_reverse_heuristic(
+                        vehicles,
+                        &state,
+                        red_index,
+                        depth,
+                    );
+
                     candidates.push((
                         state,
                         depth,
-                        heuristic,
+                        deep_score.max(heuristic),
                     ));
                 }
 
@@ -837,6 +910,215 @@ impl PuzzleGenerator {
         }
 
         Vec::new()
+    }
+
+    /// Stronger final-frontier heuristic.
+    ///
+    /// The beam search uses `fast_reverse_heuristic()` at every depth because
+    /// it is cheap. At the final depth only, we can afford a more informative
+    /// structural test. The goal is not to prove difficulty, but to estimate
+    /// whether the puzzle has a multi-layer dependency chain before paying for
+    /// the exact solver.
+    fn deep_reverse_heuristic(
+        vehicles: &[Vehicle],
+        state: &[(u8, u8)],
+        red_index: usize,
+        depth: usize,
+    ) -> usize {
+        let mut score =
+            Self::fast_reverse_heuristic(vehicles, state, red_index, depth);
+
+        let center_row = GRID_HEIGHT / 2;
+        let red = &vehicles[red_index];
+        let (red_x, red_y) = state[red_index];
+
+        if red_y as usize != center_row || red_x == 0 {
+            return score;
+        }
+
+        // Compute actual legal-move counts once for this final candidate.
+        // Low mobility is useful only when it belongs to a dependency chain,
+        // rather than being random immobility.
+        let mobility =
+            Game::legal_move_counts_for_state(vehicles, state);
+
+        let exit_start =
+            red_x as usize + red.size.0 as usize;
+
+        let mut direct_blockers = Vec::new();
+
+        for index in 0..vehicles.len() {
+            if index == red_index {
+                continue;
+            }
+
+            let vehicle = &vehicles[index];
+            let (vx, vy) = state[index];
+
+            let blocks_exit = match vehicle.orientation {
+                Orientation::Horizontal => {
+                    vy as usize == center_row
+                        && (vx as usize
+                            ..vx as usize + vehicle.size.0 as usize)
+                            .any(|x| x >= exit_start && x < GRID_WIDTH)
+                }
+
+                Orientation::Vertical => {
+                    (vx as usize) >= exit_start
+                        && (vx as usize) < GRID_WIDTH
+                        && (vy as usize) <= center_row
+                        && (vy as usize + vehicle.size.1 as usize)
+                            > center_row
+                }
+            };
+
+            if blocks_exit {
+                direct_blockers.push(index);
+
+                score += 4_000;
+
+                score += match mobility[index] {
+                    0 => 7_000,
+                    1 => 4_000,
+                    2 => 1_500,
+                    _ => 0,
+                };
+            }
+        }
+
+        // Build a cheap dependency graph. Vehicle A is considered constrained
+        // by vehicle B when B intersects A's movement axis. This is a proxy for
+        // "blocker of blocker" structure and is much more predictive of long
+        // puzzles than simply counting occupied exit cells.
+        let mut level1 = [false; 21];
+        let mut level2 = [false; 21];
+        let mut level3 = [false; 21];
+
+        for &blocker in &direct_blockers {
+            level1[blocker] = true;
+
+            let vehicle = &vehicles[blocker];
+            let (vx, vy) = state[blocker];
+
+            for other_index in 0..vehicles.len() {
+                if other_index == red_index || other_index == blocker {
+                    continue;
+                }
+
+                let other = &vehicles[other_index];
+                let (ox, oy) = state[other_index];
+
+                let constrains_blocker = match vehicle.orientation {
+                    Orientation::Horizontal => {
+                        // Any other vehicle crossing the blocker row can
+                        // constrain horizontal movement.
+                        match other.orientation {
+                            Orientation::Horizontal => oy == vy,
+                            Orientation::Vertical => {
+                                ox <= vx + vehicle.size.0
+                                    && ox + other.size.0
+                                        >= vx
+                            }
+                        }
+                    }
+
+                    Orientation::Vertical => {
+                        // Any other vehicle crossing the blocker column can
+                        // constrain vertical movement.
+                        match other.orientation {
+                            Orientation::Vertical => ox == vx,
+                            Orientation::Horizontal => {
+                                oy <= vy + vehicle.size.1
+                                    && oy + other.size.1
+                                        >= vy
+                            }
+                        }
+                    }
+                };
+
+                if constrains_blocker {
+                    level2[other_index] = true;
+                }
+            }
+        }
+
+        for index in 0..vehicles.len() {
+            if index == red_index || level1[index] {
+                continue;
+            }
+
+            if level2[index] {
+                score += 2_500;
+
+                // A second-level blocker with low mobility is particularly
+                // valuable because it suggests another dependency layer.
+                score += match mobility[index] {
+                    0 => 2_500,
+                    1 => 1_000,
+                    _ => 0,
+                };
+            }
+        }
+
+        // One more cheap layer: inspect constrained level-2 vehicles and count
+        // distinct level-3 constrainers.
+        for index in 0..vehicles.len() {
+            if index == red_index || !level2[index] {
+                continue;
+            }
+
+            let vehicle = &vehicles[index];
+            let (vx, vy) = state[index];
+
+            for other_index in 0..vehicles.len() {
+                if other_index == red_index
+                    || other_index == index
+                    || level1[other_index]
+                {
+                    continue;
+                }
+
+                let other = &vehicles[other_index];
+                let (ox, oy) = state[other_index];
+
+                let constrains = match vehicle.orientation {
+                    Orientation::Horizontal => match other.orientation {
+                        Orientation::Horizontal => oy == vy,
+                        Orientation::Vertical => {
+                            ox <= vx + vehicle.size.0
+                                && ox + other.size.0 >= vx
+                        }
+                    },
+                    Orientation::Vertical => match other.orientation {
+                        Orientation::Vertical => ox == vx,
+                        Orientation::Horizontal => {
+                            oy <= vy + vehicle.size.1
+                                && oy + other.size.1 >= vy
+                        }
+                    },
+                };
+
+                if constrains {
+                    level3[other_index] = true;
+                }
+            }
+        }
+
+        score += level3.iter().take(vehicles.len())
+            .filter(|&&v| v)
+            .count() * 900;
+
+        // Mild preference for boards with many constrained but not completely
+        // dead vehicles. Completely frozen vehicles often make a puzzle easier
+        // rather than harder.
+        let constrained =
+            (0..vehicles.len()).filter(|&i| {
+                i != red_index && mobility[i] <= 2
+            }).count();
+
+        score += constrained.min(8) * 250;
+
+        score
     }
 
     /// Very cheap reverse-search heuristic.
@@ -1672,7 +1954,10 @@ impl PuzzleGenerator {
 
     /// Solve the puzzle using the exact same movement rules used by the game.
     /// A single player action can move a vehicle any number of cells along its axis.
-    /// BFS therefore returns the true minimum number of player moves.
+    ///
+    /// This version uses A* over packed u128 states. The heuristic is an admissible
+    /// lower bound: every distinct vehicle blocking the red-car exit must move at
+    /// least once, followed by the red car's final exit move.
     pub fn solve_puzzle(&self, game: &Game) -> Option<PuzzleSolution> {
         self.solve_puzzle_with_limit(game, 3_000_000)
     }
@@ -1694,37 +1979,71 @@ impl PuzzleGenerator {
             return None;
         }
 
-        type State = Vec<(u8, u8)>;
+        // Six bits are enough to encode any of the 49 board cells.
+        // 21 vehicles use 126 bits, which fits inside u128.
+        if game.vehicles.len() > 21 {
+            return None;
+        }
 
-        let start_state: State =
+        let start_state: Vec<(u8, u8)> =
             game.vehicles.iter().map(|v| v.position).collect();
+        let start_key = Self::encode_state(&start_state);
 
-        // Pre-allocate the main BFS containers when practical. This avoids repeated
-        // reallocation as difficult candidates generate tens of thousands of states.
-        let reserve = max_search_states.min(1_000_000);
-        let mut states: Vec<State> = Vec::with_capacity(reserve);
-        states.push(start_state.clone());
+        // Heap entries are (f = g + h, g, state_index).
+        let mut frontier: BinaryHeap<(Reverse<usize>, Reverse<usize>, usize)> =
+            BinaryHeap::new();
 
-        let mut queue: VecDeque<usize> = VecDeque::with_capacity(reserve.min(65_536));
-        queue.push_back(0);
+        let reserve = max_search_states.min(1_500_000);
 
-        let mut visited: HashSet<u128> = HashSet::with_capacity(reserve);
-        let mut parent: Vec<Option<(usize, SolverMove)>> = Vec::with_capacity(reserve);
+        let mut states: Vec<u128> = Vec::with_capacity(reserve);
+        states.push(start_key);
+
+        let mut g_scores: Vec<usize> = Vec::with_capacity(reserve);
+        g_scores.push(0);
+
+        let mut parent: Vec<Option<(usize, SolverMove)>> =
+            Vec::with_capacity(reserve);
         parent.push(None);
 
-        visited.insert(Self::encode_state(&start_state));
+        // Best known g-cost for each packed state.
+        let mut best_g: HashMap<u128, usize> =
+            HashMap::with_capacity(reserve);
+
+        best_g.insert(start_key, 0);
+
+        let start_h =
+            Self::lower_bound_remaining_moves_from_key(
+                &game.vehicles,
+                start_key,
+                red_index,
+            );
+
+        frontier.push((Reverse(start_h), Reverse(0), 0));
 
         let mut total_legal_moves = 0usize;
         let mut dead_end_states = 0usize;
         let mut decision_states = 0usize;
 
-        while let Some(state_index) = queue.pop_front() {
-            let state = states[state_index].clone();
-            let red_position = state[red_index];
+        // Avoid allocating a new Vec for every expanded state.
+        let mut decoded = [(0u8, 0u8); 21];
 
-            if red_position.1 == center_row
-                && red_position.0 as usize + red_car.size.0 as usize
-                    == GRID_WIDTH
+        while let Some((Reverse(_f), Reverse(g), state_index)) = frontier.pop() {
+            let key = states[state_index];
+
+            // Ignore an obsolete heap entry if a cheaper route to the same
+            // packed state was discovered later.
+            if g_scores[state_index] != g
+                || best_g.get(&key).copied() != Some(g)
+            {
+                continue;
+            }
+
+            let (red_x, red_y) =
+                Self::get_position_from_key(key, red_index);
+
+            // Goal check directly from the packed state.
+            if red_y == center_row
+                && red_x as usize + red_car.size.0 as usize == GRID_WIDTH
             {
                 let mut moves = Vec::new();
                 let mut current = state_index;
@@ -1737,7 +2056,6 @@ impl PuzzleGenerator {
                 moves.reverse();
 
                 let explored_states = states.len();
-
                 let difficulty_score =
                     moves.len() * 1000
                     + decision_states * 10
@@ -1756,32 +2074,24 @@ impl PuzzleGenerator {
 
             if states.len() >= max_search_states {
                 println!(
-                    "Solver search limit reached at {} states. Rejecting candidate.",
+                    "A* search limit reached at {} states. Rejecting candidate.",
                     states.len()
                 );
                 return None;
             }
 
-            // Generate the entire state\'s legal move set with one occupancy
-            // construction rather than once per vehicle.
+            Self::decode_state(
+                key,
+                game.vehicles.len(),
+                &mut decoded,
+            );
+
+            let state = &decoded[..game.vehicles.len()];
+
             let legal_moves =
-                Game::legal_moves_for_state(&game.vehicles, &state);
+                Game::legal_moves_for_state(&game.vehicles, state);
 
             let legal_moves_for_state = legal_moves.len();
-
-            for (vehicle_index, new_position) in legal_moves {
-                self.enqueue_solver_state(
-                    &mut states,
-                    &mut queue,
-                    &mut visited,
-                    &mut parent,
-                    state_index,
-                    &state,
-                    vehicle_index,
-                    new_position,
-                );
-            }
-
             total_legal_moves += legal_moves_for_state;
 
             if legal_moves_for_state == 0 {
@@ -1789,53 +2099,184 @@ impl PuzzleGenerator {
             } else if legal_moves_for_state > 1 {
                 decision_states += 1;
             }
+
+            for (vehicle_index, new_position) in legal_moves {
+                let old_position = state[vehicle_index];
+                let next_key =
+                    Self::replace_position_in_key(
+                        key,
+                        vehicle_index,
+                        new_position,
+                    );
+
+                let next_g = g + 1;
+
+                if let Some(&known_g) = best_g.get(&next_key) {
+                    if next_g >= known_g {
+                        continue;
+                    }
+                }
+
+                if states.len() >= max_search_states {
+                    println!(
+                        "A* search limit reached at {} states. Rejecting candidate.",
+                        states.len()
+                    );
+                    return None;
+                }
+
+                let next_index = states.len();
+
+                best_g.insert(next_key, next_g);
+                states.push(next_key);
+                g_scores.push(next_g);
+
+                parent.push(Some((
+                    state_index,
+                    SolverMove {
+                        vehicle_index,
+                        from: old_position,
+                        to: new_position,
+                    },
+                )));
+
+                let h =
+                    Self::lower_bound_remaining_moves_from_key(
+                        &game.vehicles,
+                        next_key,
+                        red_index,
+                    );
+
+                frontier.push((
+                    Reverse(next_g + h),
+                    Reverse(next_g),
+                    next_index,
+                ));
+            }
         }
 
         println!("Puzzle is unsolvable: no solution state was found.");
         None
     }
 
-    fn encode_state(state: &[(u8, u8)]) -> u128 {
-        // 7x7 = 49 cells, so six bits encode one vehicle position.
-        // Twelve vehicles use only 72 of the 128 available bits.
-        let mut key = 0u128;
-        for (index, (x, y)) in state.iter().enumerate() {
-            let cell = (*y as u128) * GRID_WIDTH as u128 + (*x as u128);
-            key |= cell << (index * 6);
+    /// Admissible lower bound for the exact solver.
+    ///
+    /// Every distinct vehicle currently occupying the red car's exit corridor
+    /// must move at least once, and then the red car needs one final move.
+    fn lower_bound_remaining_moves_from_key(
+        vehicles: &[Vehicle],
+        key: u128,
+        red_index: usize,
+    ) -> usize {
+        let red = &vehicles[red_index];
+        let (red_x, red_y) =
+            Self::get_position_from_key(key, red_index);
+
+        let center_row = (GRID_HEIGHT / 2) as u8;
+
+        if red_y != center_row {
+            return usize::MAX / 4;
         }
-        key
+
+        if red_x as usize + red.size.0 as usize == GRID_WIDTH {
+            return 0;
+        }
+
+        let first_exit_cell =
+            red_x as usize + red.size.0 as usize;
+
+        let mut blocking = [false; 21];
+        let mut blocker_count = 0usize;
+
+        for x in first_exit_cell..GRID_WIDTH {
+            for index in 0..vehicles.len() {
+                if index == red_index || blocking[index] {
+                    continue;
+                }
+
+                let (vx, vy) =
+                    Self::get_position_from_key(key, index);
+                let vehicle = &vehicles[index];
+
+                let occupies = match vehicle.orientation {
+                    Orientation::Horizontal => {
+                        vy as usize == center_row as usize
+                            && x >= vx as usize
+                            && x < vx as usize + vehicle.size.0 as usize
+                    }
+
+                    Orientation::Vertical => {
+                        vx as usize == x
+                            && center_row as usize >= vy as usize
+                            && (center_row as usize)
+                                < vy as usize + vehicle.size.1 as usize
+                    }
+                };
+
+                if occupies {
+                    blocking[index] = true;
+                    blocker_count += 1;
+                }
+            }
+        }
+
+        blocker_count + 1
     }
 
-    fn enqueue_solver_state(
-        &self,
-        states: &mut Vec<Vec<(u8, u8)>>,
-        queue: &mut VecDeque<usize>,
-        visited: &mut HashSet<u128>,
-        parent: &mut Vec<Option<(usize, SolverMove)>>,
-        parent_index: usize,
-        state: &[(u8, u8)],
+    #[inline]
+    fn replace_position_in_key(
+        key: u128,
         vehicle_index: usize,
-        new_position: (u8, u8),
-    ) {
-        let mut next_state = state.to_vec();
-        let old_position = next_state[vehicle_index];
-        next_state[vehicle_index] = new_position;
+        position: (u8, u8),
+    ) -> u128 {
+        let shift = vehicle_index * 6;
+        let mask = 0x3Fu128 << shift;
+        let cell =
+            position.1 as u128 * GRID_WIDTH as u128
+            + position.0 as u128;
 
-        if !visited.insert(Self::encode_state(&next_state)) {
-            return;
+        (key & !mask) | (cell << shift)
+    }
+
+    #[inline]
+    fn get_position_from_key(
+        key: u128,
+        vehicle_index: usize,
+    ) -> (u8, u8) {
+        let shift = vehicle_index * 6;
+        let cell = ((key >> shift) & 0x3F) as usize;
+
+        (
+            (cell % GRID_WIDTH) as u8,
+            (cell / GRID_WIDTH) as u8,
+        )
+    }
+
+    #[inline]
+    fn decode_state(
+        key: u128,
+        vehicle_count: usize,
+        output: &mut [(u8, u8); 21],
+    ) {
+        for index in 0..vehicle_count {
+            output[index] =
+                Self::get_position_from_key(key, index);
+        }
+    }
+
+    fn encode_state(state: &[(u8, u8)]) -> u128 {
+        // 7x7 = 49 cells, so six bits encode one vehicle position.
+        // Up to 21 vehicles use 126 of the 128 available bits.
+        let mut key = 0u128;
+
+        for (index, (x, y)) in state.iter().enumerate() {
+            let cell =
+                (*y as u128) * GRID_WIDTH as u128 + (*x as u128);
+
+            key |= cell << (index * 6);
         }
 
-        let new_index = states.len();
-        states.push(next_state);
-        parent.push(Some((
-            parent_index,
-            SolverMove {
-                vehicle_index,
-                from: old_position,
-                to: new_position,
-            },
-        )));
-        queue.push_back(new_index);
+        key
     }
 
     fn red_car_is_blocked(&self, game: &Game) -> bool {
