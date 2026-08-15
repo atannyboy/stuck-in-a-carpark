@@ -1,5 +1,3 @@
-use crate::puzzle_generator::PuzzleGenerator;
-
 use std::collections::HashSet;
 use rand::Rng;
 

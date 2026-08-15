@@ -11,9 +11,7 @@ use piston::input::{RenderEvent, PressEvent, MouseCursorEvent};
 use piston::Button;
 use piston::input::{MouseButton};
 
-use crate::vehicle_struct::Vehicle;
 use crate::puzzle_generator::PuzzleGenerator;
-use crate::puzzle_generator::GRID_WIDTH;
 /*use crate::puzzle_generator::GameManager;*/
 
 const CELL_SIZE: f64 = 50.0;
@@ -33,14 +31,15 @@ fn main() {
     // Generate initial puzzle with vehicles
     let initial_vehicles = puzzle_generator.generate_puzzle(&mut /*game_manager.*/game);
     /*game_manager.update_vehicles(initial_vehicles.clone());*/
-    let vehicles_count = initial_vehicles.len();
     /*game_manager.*/game.vehicles = initial_vehicles.clone();
+    game.rebuild_grid();
     
     /*println!("Setting vehicles. Vehicle count: {}", vehicles_count);
     /*game_manager.*/game.update_grid(); // Update grid every time vehicles are set*/
 
+    /* Display exactly the state that the GUI will render. */
     let grid_clone = /*game_manager.*/game.grid.clone();
-    /*game_manager.*/game.display_carpark(&initial_vehicles, &grid_clone);
+    /*game_manager.*/game.display_carpark(&game.vehicles, &grid_clone);
 
     let mut gl = GlGraphics::new(opengl);
     let mut cursor_pos: [f64; 2] = [0.0, 0.0];
